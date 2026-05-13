@@ -1,0 +1,35 @@
+{
+  "mode": "live",
+  "config": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_3_Fusion_MultiCam\\config.yaml",
+  "cameras": [
+    "cam_02",
+    "cam_03",
+    "cam_05",
+    "cam_07"
+  ],
+  "duration_min": 5.0,
+  "tad_gt": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\dataset_objets_HD\\gt_objects_tad.json",
+  "models": [
+    {
+      "version": "V3",
+      "name": "yolov8s",
+      "subdir": "yolov8s",
+      "model_type": "yolo",
+      "format_label": "fp32_engine",
+      "format_arg": "engine",
+      "suffix_arg": "fp32_best",
+      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolov8s\\weights\\best_fp32_best.engine",
+      "exists": true
+    }
+  ],
+  "capture_backend": "gstreamer",
+  "gst_codec": "h265",
+  "record_video": false,
+  "record_fps": 25.0,
+  "display_mode": "annotated",
+  "alerting": {
+    "person_zone_min_camera_ratio": null,
+    "person_zone_min_camera_votes": null,
+    "object_min_camera_votes": 1
+  }
+}

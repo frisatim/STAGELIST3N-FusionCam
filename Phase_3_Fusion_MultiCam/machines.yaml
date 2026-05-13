@@ -1,0 +1,220 @@
+video:
+  resolution:
+  - 1280
+  - 720
+  fps: 25
+geometrie_2d:
+  plan_image: plan_rdc.png
+  echelle_px_par_metre: 42.3
+  unite: metres
+  origine_pixel_x: 82
+  origine_pixel_y: 45
+# =============================================================================
+#  COORDONNÉES DES MACHINES — À REMPLIR
+# =============================================================================
+#
+#  INSTRUCTIONS :
+#  1. Pour chaque machine, donner les 4 coins en mètres depuis l'origine (0,0)
+#     Origine = coin haut-gauche du plan (marqué en bleu)
+#     x = vers la droite, y = vers le bas
+#
+#  2. Ordre des coins : dans le sens horaire en partant du coin haut-gauche
+#     de la machine vue du dessus :
+#     coin_1 (haut-gauche), coin_2 (haut-droite), coin_3 (bas-droite), coin_4 (bas-gauche)
+#
+#  3. Pour les machines en losange (tournées à 45°), donnez les 4 coins dans
+#     le sens horaire en partant du coin le plus haut.
+#
+#  4. Champ "visible_par" : listez les caméras qui voient cette machine.
+#     C'est important pour choisir les points de calibration.
+#
+#  EXEMPLE (à supprimer une fois rempli) :
+#  - nom: "Fraiseuse CNC"
+#    salle: room_1
+#    coins_metres:
+#      - [1.20, 0.80]    # coin haut-gauche
+#      - [3.50, 0.80]    # coin haut-droite
+#      - [3.50, 2.10]    # coin bas-droite
+#      - [1.20, 2.10]    # coin bas-gauche
+#    visible_par: [cam_03, cam_05]
+#
+# =============================================================================
+
+machines:
+
+  # ─── SALLE 1 (cam_03, cam_05, cam_07) ─────────────────────────────────
+
+  - nom: "Machine_S1_01"
+    salle: room_1
+    coins_metres:
+      - [61, 210]
+      - [202, 230]
+      - [192, 324]
+      - [51, 306]
+    visible_par: []
+
+  - nom: "Machine_S1_02"
+    salle: room_1
+    coins_metres:
+      - [196, 292]
+      - [262, 301]
+      - [258, 334]
+      - [192, 324]
+    visible_par: []
+
+  - nom: "Machine_S1_03"
+    salle: room_1
+    coins_metres:
+      - [72, 118]
+      - [133, 125]
+      - [121, 218]
+      - [61, 210]
+    visible_par: []
+
+  - nom: "Machine_S1_04"
+    salle: room_1
+    coins_metres:
+      - [118, 57]
+      - [145, 89]
+      - [111, 117]
+      - [85, 86]
+    visible_par: []
+
+  - nom: "Machine_S1_05"
+    salle: room_1
+    coins_metres:
+      - [178, 59]
+      - [237, 64]
+      - [233, 109]
+      - [174, 104]
+    visible_par: []
+
+  - nom: "Machine_S1_06"
+    salle: room_1
+    coins_metres:
+      - [243, 66]
+      - [287, 70]
+      - [283, 113]
+      - [241, 109]
+    visible_par: []
+
+  - nom: "Machine_S1_07"
+    salle: room_1
+    coins_metres:
+      - [314, 67]
+      - [366, 73]
+      - [364, 110]
+      - [312, 106]
+    visible_par: []
+
+  - nom: "Machine_S1_08"
+    salle: room_1
+    coins_metres:
+      - [394, 73]
+      - [425, 104]
+      - [395, 134]
+      - [365, 103]
+    visible_par: []
+
+  - nom: "Machine_S1_09"
+    salle: room_1
+    coins_metres:
+      - [365, 142]
+      - [395, 143]
+      - [398, 193]
+      - [366, 191]
+    visible_par: []
+
+
+
+  # ─── SALLE 2 (cam_01, cam_02, cam_04, cam_06, cam_08) ─────────────────
+
+  - nom: "Machine_S2_01"
+    salle: room_2
+    coins_metres:
+      - [167, 414]
+      - [199, 419]
+      - [188, 514]
+      - [156, 509]
+    visible_par: []
+
+  - nom: "Machine_S2_02"
+    salle: room_2
+    coins_metres:
+      - [253, 434]
+      - [285, 439]
+      - [276, 508]
+      - [245, 504]
+    visible_par: []
+
+  - nom: "Machine_S2_03"
+    salle: room_2
+    coins_metres:
+      - [283, 460]
+      - [315, 465]
+      - [310, 487]
+      - [280, 482]
+    visible_par: []
+
+  - nom: "Machine_S2_04"
+    salle: room_2
+    coins_metres:
+      - [280, 482]
+      - [309, 487]
+      - [304, 510]
+      - [276, 505]
+    visible_par: []
+
+  - nom: "Machine_S2_05"
+    salle: room_2
+    coins_metres:
+      - [196, 453]
+      - [250, 460]
+      - [247, 485]
+      - [192, 478]
+    visible_par: []
+
+  - nom: "Machine_S2_06"
+    salle: room_2
+    coins_metres:
+      - [197, 438]
+      - [217, 441]
+      - [215, 456]
+      - [196, 454]
+    visible_par: []
+
+  - nom: "Machine_S2_07"
+    salle: room_2
+    coins_metres:
+      - [192, 477]
+      - [219, 482]
+      - [217, 499]
+      - [190, 494]
+    visible_par: []
+
+  - nom: "Machine_S2_08"
+    salle: room_2
+    coins_metres:
+      - [137, 431]
+      - [165, 434]
+      - [163, 450]
+      - [136, 446]
+    visible_par: []
+
+  - nom: "Machine_S2_09"
+    salle: room_2
+    coins_metres:
+      - [140, 472]
+      - [160, 474]
+      - [158, 490]
+      - [139, 488]
+    visible_par: []
+
+  - nom: "Machine_S2_10"
+    salle: room_2
+    coins_metres:
+      - [104, 443]
+      - [163, 450]
+      - [160, 474]
+      - [101, 467]
+    visible_par: []

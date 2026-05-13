@@ -1,0 +1,2028 @@
+[
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 1,
+    "trame_violation": 0,
+    "horodatage_violation": 0.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 2,
+    "trame_violation": 2293,
+    "horodatage_violation": 91720.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 4,
+    "trame_violation": 2707,
+    "horodatage_violation": 108280.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 5,
+    "trame_violation": 7828,
+    "horodatage_violation": 313120.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 6,
+    "trame_violation": 8211,
+    "horodatage_violation": 328440.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 7,
+    "trame_violation": 10719,
+    "horodatage_violation": 428760.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 9,
+    "trame_violation": 13221,
+    "horodatage_violation": 528840.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 10,
+    "trame_violation": 13717,
+    "horodatage_violation": 548680.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 11,
+    "trame_violation": 16873,
+    "horodatage_violation": 674920.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 12,
+    "trame_violation": 17643,
+    "horodatage_violation": 705720.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 13,
+    "trame_violation": 19640,
+    "horodatage_violation": 785600.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 14,
+    "trame_violation": 20948,
+    "horodatage_violation": 837920.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 15,
+    "trame_violation": 22728,
+    "horodatage_violation": 909120.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 16,
+    "trame_violation": 24333,
+    "horodatage_violation": 973320.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 17,
+    "trame_violation": 33992,
+    "horodatage_violation": 1359680.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 18,
+    "trame_violation": 34625,
+    "horodatage_violation": 1385000.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 19,
+    "trame_violation": 49039,
+    "horodatage_violation": 1961560.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 20,
+    "trame_violation": 61180,
+    "horodatage_violation": 2447200.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 21,
+    "trame_violation": 61509,
+    "horodatage_violation": 2460360.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 22,
+    "trame_violation": 61564,
+    "horodatage_violation": 2462560.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 23,
+    "trame_violation": 65602,
+    "horodatage_violation": 2624080.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 24,
+    "trame_violation": 71047,
+    "horodatage_violation": 2841880.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 25,
+    "trame_violation": 79148,
+    "horodatage_violation": 3165920.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 3,
+    "trame_violation": 2294,
+    "horodatage_violation": 91760.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 8,
+    "trame_violation": 10720,
+    "horodatage_violation": 428800.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 4,
+    "zone_id": "B",
+    "trame_violation": 11628,
+    "horodatage_violation": 465120.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 5,
+    "zone_id": "B",
+    "trame_violation": 13221,
+    "horodatage_violation": 528840.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 6,
+    "zone_id": "B",
+    "trame_violation": 16869,
+    "horodatage_violation": 674760.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 8,
+    "zone_id": "B",
+    "trame_violation": 22732,
+    "horodatage_violation": 909280.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 10,
+    "zone_id": "B",
+    "trame_violation": 33989,
+    "horodatage_violation": 1359560.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 11,
+    "zone_id": "B",
+    "trame_violation": 49044,
+    "horodatage_violation": 1961760.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 12,
+    "zone_id": "B",
+    "trame_violation": 50601,
+    "horodatage_violation": 2024040.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 12,
+    "zone_id": "B",
+    "trame_violation": 61188,
+    "horodatage_violation": 2447520.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 14,
+    "zone_id": "B",
+    "trame_violation": 61695,
+    "horodatage_violation": 2467800.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 15,
+    "zone_id": "B",
+    "trame_violation": 66128,
+    "horodatage_violation": 2645120.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 15,
+    "zone_id": "B",
+    "trame_violation": 79519,
+    "horodatage_violation": 3180760.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 1,
+    "zone_id": "A",
+    "trame_violation": 1527,
+    "horodatage_violation": 61080.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 2,
+    "zone_id": "A",
+    "trame_violation": 1663,
+    "horodatage_violation": 66520.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 1,
+    "zone_id": "B",
+    "trame_violation": 1882,
+    "horodatage_violation": 75280.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 4,
+    "zone_id": "A",
+    "trame_violation": 3885,
+    "horodatage_violation": 155400.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 6,
+    "zone_id": "A",
+    "trame_violation": 11841,
+    "horodatage_violation": 473640.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 7,
+    "zone_id": "A",
+    "trame_violation": 12083,
+    "horodatage_violation": 483320.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 8,
+    "zone_id": "A",
+    "trame_violation": 14229,
+    "horodatage_violation": 569160.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 9,
+    "zone_id": "A",
+    "trame_violation": 16477,
+    "horodatage_violation": 659080.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 9,
+    "zone_id": "A",
+    "trame_violation": 18207,
+    "horodatage_violation": 728280.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 10,
+    "zone_id": "A",
+    "trame_violation": 20299,
+    "horodatage_violation": 811960.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 11,
+    "zone_id": "A",
+    "trame_violation": 20586,
+    "horodatage_violation": 823440.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 12,
+    "zone_id": "A",
+    "trame_violation": 22985,
+    "horodatage_violation": 919400.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 13,
+    "zone_id": "A",
+    "trame_violation": 25104,
+    "horodatage_violation": 1004160.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 14,
+    "zone_id": "A",
+    "trame_violation": 33671,
+    "horodatage_violation": 1346840.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 15,
+    "zone_id": "A",
+    "trame_violation": 35500,
+    "horodatage_violation": 1420000.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 16,
+    "zone_id": "A",
+    "trame_violation": 47042,
+    "horodatage_violation": 1881680.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 18,
+    "zone_id": "A",
+    "trame_violation": 49483,
+    "horodatage_violation": 1979320.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 19,
+    "zone_id": "A",
+    "trame_violation": 50046,
+    "horodatage_violation": 2001840.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 20,
+    "zone_id": "A",
+    "trame_violation": 50284,
+    "horodatage_violation": 2011360.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 21,
+    "zone_id": "A",
+    "trame_violation": 51553,
+    "horodatage_violation": 2062120.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 22,
+    "zone_id": "A",
+    "trame_violation": 60865,
+    "horodatage_violation": 2434600.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 24,
+    "zone_id": "A",
+    "trame_violation": 60889,
+    "horodatage_violation": 2435560.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 23,
+    "zone_id": "A",
+    "trame_violation": 60928,
+    "horodatage_violation": 2437120.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 25,
+    "zone_id": "A",
+    "trame_violation": 61152,
+    "horodatage_violation": 2446080.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 26,
+    "zone_id": "A",
+    "trame_violation": 62463,
+    "horodatage_violation": 2498520.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 27,
+    "zone_id": "A",
+    "trame_violation": 62814,
+    "horodatage_violation": 2512560.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 28,
+    "zone_id": "A",
+    "trame_violation": 62918,
+    "horodatage_violation": 2516720.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 29,
+    "zone_id": "A",
+    "trame_violation": 62951,
+    "horodatage_violation": 2518040.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 30,
+    "zone_id": "A",
+    "trame_violation": 65520,
+    "horodatage_violation": 2620800.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 31,
+    "zone_id": "A",
+    "trame_violation": 65568,
+    "horodatage_violation": 2622720.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 32,
+    "zone_id": "A",
+    "trame_violation": 65902,
+    "horodatage_violation": 2636080.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 33,
+    "zone_id": "A",
+    "trame_violation": 66291,
+    "horodatage_violation": 2651640.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 34,
+    "zone_id": "A",
+    "trame_violation": 67250,
+    "horodatage_violation": 2690000.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 36,
+    "zone_id": "A",
+    "trame_violation": 67366,
+    "horodatage_violation": 2694640.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 37,
+    "zone_id": "A",
+    "trame_violation": 67538,
+    "horodatage_violation": 2701520.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 38,
+    "zone_id": "A",
+    "trame_violation": 67624,
+    "horodatage_violation": 2704960.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 39,
+    "zone_id": "A",
+    "trame_violation": 67759,
+    "horodatage_violation": 2710360.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 41,
+    "zone_id": "A",
+    "trame_violation": 67809,
+    "horodatage_violation": 2712360.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 42,
+    "zone_id": "A",
+    "trame_violation": 68423,
+    "horodatage_violation": 2736920.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 43,
+    "zone_id": "A",
+    "trame_violation": 68897,
+    "horodatage_violation": 2755880.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 44,
+    "zone_id": "A",
+    "trame_violation": 69173,
+    "horodatage_violation": 2766920.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 45,
+    "zone_id": "A",
+    "trame_violation": 70065,
+    "horodatage_violation": 2802600.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 46,
+    "zone_id": "A",
+    "trame_violation": 70283,
+    "horodatage_violation": 2811320.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 48,
+    "zone_id": "A",
+    "trame_violation": 71947,
+    "horodatage_violation": 2877880.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 50,
+    "zone_id": "A",
+    "trame_violation": 72610,
+    "horodatage_violation": 2904400.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 52,
+    "zone_id": "A",
+    "trame_violation": 73215,
+    "horodatage_violation": 2928600.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 53,
+    "zone_id": "A",
+    "trame_violation": 73752,
+    "horodatage_violation": 2950080.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 54,
+    "zone_id": "A",
+    "trame_violation": 74259,
+    "horodatage_violation": 2970360.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 56,
+    "zone_id": "A",
+    "trame_violation": 74859,
+    "horodatage_violation": 2994360.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 57,
+    "zone_id": "A",
+    "trame_violation": 75204,
+    "horodatage_violation": 3008160.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 58,
+    "zone_id": "A",
+    "trame_violation": 76059,
+    "horodatage_violation": 3042360.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 59,
+    "zone_id": "A",
+    "trame_violation": 76070,
+    "horodatage_violation": 3042800.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 60,
+    "zone_id": "A",
+    "trame_violation": 76085,
+    "horodatage_violation": 3043400.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 61,
+    "zone_id": "A",
+    "trame_violation": 76425,
+    "horodatage_violation": 3057000.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 62,
+    "zone_id": "A",
+    "trame_violation": 76824,
+    "horodatage_violation": 3072960.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 65,
+    "zone_id": "A",
+    "trame_violation": 77924,
+    "horodatage_violation": 3116960.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 66,
+    "zone_id": "A",
+    "trame_violation": 81189,
+    "horodatage_violation": 3247560.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 67,
+    "zone_id": "A",
+    "trame_violation": 81671,
+    "horodatage_violation": 3266840.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 68,
+    "zone_id": "A",
+    "trame_violation": 82891,
+    "horodatage_violation": 3315640.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 69,
+    "zone_id": "A",
+    "trame_violation": 83808,
+    "horodatage_violation": 3352320.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 70,
+    "zone_id": "A",
+    "trame_violation": 85425,
+    "horodatage_violation": 3417000.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 71,
+    "zone_id": "A",
+    "trame_violation": 90133,
+    "horodatage_violation": 3605320.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 72,
+    "zone_id": "A",
+    "trame_violation": 94605,
+    "horodatage_violation": 3784200.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 75,
+    "zone_id": "A",
+    "trame_violation": 95634,
+    "horodatage_violation": 3825360.0
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 76,
+    "zone_id": "A",
+    "trame_violation": 103259,
+    "horodatage_violation": 4130360.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 1,
+    "zone_id": "A",
+    "trame_violation": 1534,
+    "horodatage_violation": 61360.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 2,
+    "zone_id": "A",
+    "trame_violation": 1665,
+    "horodatage_violation": 66600.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 3,
+    "zone_id": "A",
+    "trame_violation": 1877,
+    "horodatage_violation": 75080.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 4,
+    "zone_id": "A",
+    "trame_violation": 2034,
+    "horodatage_violation": 81360.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 5,
+    "zone_id": "A",
+    "trame_violation": 3888,
+    "horodatage_violation": 155520.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 6,
+    "zone_id": "A",
+    "trame_violation": 9505,
+    "horodatage_violation": 380200.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 7,
+    "zone_id": "A",
+    "trame_violation": 10290,
+    "horodatage_violation": 411600.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 8,
+    "zone_id": "A",
+    "trame_violation": 11834,
+    "horodatage_violation": 473360.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 9,
+    "zone_id": "A",
+    "trame_violation": 12080,
+    "horodatage_violation": 483200.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 8,
+    "zone_id": "A",
+    "trame_violation": 14205,
+    "horodatage_violation": 568200.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 9,
+    "zone_id": "A",
+    "trame_violation": 16485,
+    "horodatage_violation": 659400.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 9,
+    "zone_id": "A",
+    "trame_violation": 18195,
+    "horodatage_violation": 727800.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 10,
+    "zone_id": "A",
+    "trame_violation": 20288,
+    "horodatage_violation": 811520.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 11,
+    "zone_id": "A",
+    "trame_violation": 20581,
+    "horodatage_violation": 823240.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 12,
+    "zone_id": "A",
+    "trame_violation": 22973,
+    "horodatage_violation": 918920.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 13,
+    "zone_id": "A",
+    "trame_violation": 25089,
+    "horodatage_violation": 1003560.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 14,
+    "zone_id": "A",
+    "trame_violation": 33664,
+    "horodatage_violation": 1346560.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 15,
+    "zone_id": "A",
+    "trame_violation": 35502,
+    "horodatage_violation": 1420080.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 16,
+    "zone_id": "A",
+    "trame_violation": 47055,
+    "horodatage_violation": 1882200.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 17,
+    "zone_id": "A",
+    "trame_violation": 47996,
+    "horodatage_violation": 1919840.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 18,
+    "zone_id": "A",
+    "trame_violation": 49453,
+    "horodatage_violation": 1978120.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 19,
+    "zone_id": "A",
+    "trame_violation": 50065,
+    "horodatage_violation": 2002600.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 20,
+    "zone_id": "A",
+    "trame_violation": 50282,
+    "horodatage_violation": 2011280.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 21,
+    "zone_id": "A",
+    "trame_violation": 51550,
+    "horodatage_violation": 2062000.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 22,
+    "zone_id": "A",
+    "trame_violation": 60866,
+    "horodatage_violation": 2434640.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 24,
+    "zone_id": "A",
+    "trame_violation": 60883,
+    "horodatage_violation": 2435320.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 23,
+    "zone_id": "A",
+    "trame_violation": 60926,
+    "horodatage_violation": 2437040.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 25,
+    "zone_id": "A",
+    "trame_violation": 61151,
+    "horodatage_violation": 2446040.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 26,
+    "zone_id": "A",
+    "trame_violation": 62462,
+    "horodatage_violation": 2498480.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 27,
+    "zone_id": "A",
+    "trame_violation": 62811,
+    "horodatage_violation": 2512440.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 28,
+    "zone_id": "A",
+    "trame_violation": 62907,
+    "horodatage_violation": 2516280.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 29,
+    "zone_id": "A",
+    "trame_violation": 62947,
+    "horodatage_violation": 2517880.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 30,
+    "zone_id": "A",
+    "trame_violation": 65513,
+    "horodatage_violation": 2620520.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 31,
+    "zone_id": "A",
+    "trame_violation": 65568,
+    "horodatage_violation": 2622720.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 32,
+    "zone_id": "A",
+    "trame_violation": 65897,
+    "horodatage_violation": 2635880.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 33,
+    "zone_id": "A",
+    "trame_violation": 66271,
+    "horodatage_violation": 2650840.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 34,
+    "zone_id": "A",
+    "trame_violation": 67089,
+    "horodatage_violation": 2683560.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 36,
+    "zone_id": "A",
+    "trame_violation": 67256,
+    "horodatage_violation": 2690240.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 36,
+    "zone_id": "A",
+    "trame_violation": 67375,
+    "horodatage_violation": 2695000.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 37,
+    "zone_id": "A",
+    "trame_violation": 67536,
+    "horodatage_violation": 2701440.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 39,
+    "zone_id": "A",
+    "trame_violation": 67747,
+    "horodatage_violation": 2709880.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 41,
+    "zone_id": "A",
+    "trame_violation": 67808,
+    "horodatage_violation": 2712320.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 42,
+    "zone_id": "A",
+    "trame_violation": 68429,
+    "horodatage_violation": 2737160.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 43,
+    "zone_id": "A",
+    "trame_violation": 68888,
+    "horodatage_violation": 2755520.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 44,
+    "zone_id": "A",
+    "trame_violation": 69163,
+    "horodatage_violation": 2766520.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 45,
+    "zone_id": "A",
+    "trame_violation": 70055,
+    "horodatage_violation": 2802200.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 46,
+    "zone_id": "A",
+    "trame_violation": 70279,
+    "horodatage_violation": 2811160.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 48,
+    "zone_id": "A",
+    "trame_violation": 71949,
+    "horodatage_violation": 2877960.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 50,
+    "zone_id": "A",
+    "trame_violation": 72636,
+    "horodatage_violation": 2905440.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 53,
+    "zone_id": "A",
+    "trame_violation": 73742,
+    "horodatage_violation": 2949680.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 54,
+    "zone_id": "A",
+    "trame_violation": 74256,
+    "horodatage_violation": 2970240.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 57,
+    "zone_id": "A",
+    "trame_violation": 75191,
+    "horodatage_violation": 3007640.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 58,
+    "zone_id": "A",
+    "trame_violation": 76065,
+    "horodatage_violation": 3042600.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 59,
+    "zone_id": "A",
+    "trame_violation": 76065,
+    "horodatage_violation": 3042600.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 60,
+    "zone_id": "A",
+    "trame_violation": 76068,
+    "horodatage_violation": 3042720.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 61,
+    "zone_id": "A",
+    "trame_violation": 76421,
+    "horodatage_violation": 3056840.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 62,
+    "zone_id": "A",
+    "trame_violation": 76820,
+    "horodatage_violation": 3072800.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 63,
+    "zone_id": "A",
+    "trame_violation": 77211,
+    "horodatage_violation": 3088440.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 65,
+    "zone_id": "A",
+    "trame_violation": 77918,
+    "horodatage_violation": 3116720.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 66,
+    "zone_id": "A",
+    "trame_violation": 81189,
+    "horodatage_violation": 3247560.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 67,
+    "zone_id": "A",
+    "trame_violation": 81650,
+    "horodatage_violation": 3266000.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 68,
+    "zone_id": "A",
+    "trame_violation": 82890,
+    "horodatage_violation": 3315600.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 69,
+    "zone_id": "A",
+    "trame_violation": 83805,
+    "horodatage_violation": 3352200.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 70,
+    "zone_id": "A",
+    "trame_violation": 85423,
+    "horodatage_violation": 3416920.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 71,
+    "zone_id": "A",
+    "trame_violation": 90133,
+    "horodatage_violation": 3605320.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 72,
+    "zone_id": "A",
+    "trame_violation": 94588,
+    "horodatage_violation": 3783520.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 73,
+    "zone_id": "A",
+    "trame_violation": 95387,
+    "horodatage_violation": 3815480.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 74,
+    "zone_id": "A",
+    "trame_violation": 95605,
+    "horodatage_violation": 3824200.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 75,
+    "zone_id": "A",
+    "trame_violation": 95637,
+    "horodatage_violation": 3825480.0
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 76,
+    "zone_id": "A",
+    "trame_violation": 103265,
+    "horodatage_violation": 4130600.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 1,
+    "zone_id": "A",
+    "trame_violation": 1537,
+    "horodatage_violation": 61480.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 2,
+    "zone_id": "A",
+    "trame_violation": 1662,
+    "horodatage_violation": 66480.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 3,
+    "zone_id": "A",
+    "trame_violation": 1878,
+    "horodatage_violation": 75120.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 4,
+    "zone_id": "A",
+    "trame_violation": 2034,
+    "horodatage_violation": 81360.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 5,
+    "zone_id": "A",
+    "trame_violation": 3887,
+    "horodatage_violation": 155480.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 6,
+    "zone_id": "A",
+    "trame_violation": 9492,
+    "horodatage_violation": 379680.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 7,
+    "zone_id": "A",
+    "trame_violation": 10293,
+    "horodatage_violation": 411720.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 8,
+    "zone_id": "A",
+    "trame_violation": 11837,
+    "horodatage_violation": 473480.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 9,
+    "zone_id": "A",
+    "trame_violation": 12079,
+    "horodatage_violation": 483160.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 8,
+    "zone_id": "A",
+    "trame_violation": 14210,
+    "horodatage_violation": 568400.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 9,
+    "zone_id": "A",
+    "trame_violation": 16484,
+    "horodatage_violation": 659360.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 10,
+    "zone_id": "A",
+    "trame_violation": 18193,
+    "horodatage_violation": 727720.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 10,
+    "zone_id": "A",
+    "trame_violation": 20288,
+    "horodatage_violation": 811520.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 11,
+    "zone_id": "A",
+    "trame_violation": 20588,
+    "horodatage_violation": 823520.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 12,
+    "zone_id": "A",
+    "trame_violation": 22967,
+    "horodatage_violation": 918680.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 13,
+    "zone_id": "A",
+    "trame_violation": 25085,
+    "horodatage_violation": 1003400.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 14,
+    "zone_id": "A",
+    "trame_violation": 33663,
+    "horodatage_violation": 1346520.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 15,
+    "zone_id": "A",
+    "trame_violation": 35497,
+    "horodatage_violation": 1419880.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 16,
+    "zone_id": "A",
+    "trame_violation": 47045,
+    "horodatage_violation": 1881800.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 17,
+    "zone_id": "A",
+    "trame_violation": 47996,
+    "horodatage_violation": 1919840.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 18,
+    "zone_id": "A",
+    "trame_violation": 49464,
+    "horodatage_violation": 1978560.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 19,
+    "zone_id": "A",
+    "trame_violation": 50049,
+    "horodatage_violation": 2001960.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 20,
+    "zone_id": "A",
+    "trame_violation": 50282,
+    "horodatage_violation": 2011280.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 21,
+    "zone_id": "A",
+    "trame_violation": 51538,
+    "horodatage_violation": 2061520.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 22,
+    "zone_id": "A",
+    "trame_violation": 60855,
+    "horodatage_violation": 2434200.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 24,
+    "zone_id": "A",
+    "trame_violation": 60881,
+    "horodatage_violation": 2435240.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 23,
+    "zone_id": "A",
+    "trame_violation": 60879,
+    "horodatage_violation": 2435160.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 25,
+    "zone_id": "A",
+    "trame_violation": 61146,
+    "horodatage_violation": 2445840.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 26,
+    "zone_id": "A",
+    "trame_violation": 62460,
+    "horodatage_violation": 2498400.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 27,
+    "zone_id": "A",
+    "trame_violation": 62814,
+    "horodatage_violation": 2512560.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 28,
+    "zone_id": "A",
+    "trame_violation": 62883,
+    "horodatage_violation": 2515320.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 29,
+    "zone_id": "A",
+    "trame_violation": 62947,
+    "horodatage_violation": 2517880.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 30,
+    "zone_id": "A",
+    "trame_violation": 65513,
+    "horodatage_violation": 2620520.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 29,
+    "zone_id": "A",
+    "trame_violation": 65565,
+    "horodatage_violation": 2622600.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 32,
+    "zone_id": "A",
+    "trame_violation": 65903,
+    "horodatage_violation": 2636120.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 33,
+    "zone_id": "A",
+    "trame_violation": 66269,
+    "horodatage_violation": 2650760.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 35,
+    "zone_id": "A",
+    "trame_violation": 67113,
+    "horodatage_violation": 2684520.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 34,
+    "zone_id": "A",
+    "trame_violation": 67250,
+    "horodatage_violation": 2690000.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 36,
+    "zone_id": "A",
+    "trame_violation": 67367,
+    "horodatage_violation": 2694680.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 37,
+    "zone_id": "A",
+    "trame_violation": 67544,
+    "horodatage_violation": 2701760.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 38,
+    "zone_id": "A",
+    "trame_violation": 67623,
+    "horodatage_violation": 2704920.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 40,
+    "zone_id": "A",
+    "trame_violation": 67747,
+    "horodatage_violation": 2709880.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 41,
+    "zone_id": "A",
+    "trame_violation": 67806,
+    "horodatage_violation": 2712240.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 42,
+    "zone_id": "A",
+    "trame_violation": 68436,
+    "horodatage_violation": 2737440.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 43,
+    "zone_id": "A",
+    "trame_violation": 68886,
+    "horodatage_violation": 2755440.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 44,
+    "zone_id": "A",
+    "trame_violation": 69161,
+    "horodatage_violation": 2766440.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 45,
+    "zone_id": "A",
+    "trame_violation": 70068,
+    "horodatage_violation": 2802720.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 47,
+    "zone_id": "A",
+    "trame_violation": 71013,
+    "horodatage_violation": 2840520.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 48,
+    "zone_id": "A",
+    "trame_violation": 71947,
+    "horodatage_violation": 2877880.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 49,
+    "zone_id": "A",
+    "trame_violation": 72455,
+    "horodatage_violation": 2898200.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 50,
+    "zone_id": "A",
+    "trame_violation": 72616,
+    "horodatage_violation": 2904640.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 51,
+    "zone_id": "A",
+    "trame_violation": 72777,
+    "horodatage_violation": 2911080.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 52,
+    "zone_id": "A",
+    "trame_violation": 73207,
+    "horodatage_violation": 2928280.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 53,
+    "zone_id": "A",
+    "trame_violation": 73744,
+    "horodatage_violation": 2949760.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 54,
+    "zone_id": "A",
+    "trame_violation": 74247,
+    "horodatage_violation": 2969880.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 55,
+    "zone_id": "A",
+    "trame_violation": 74851,
+    "horodatage_violation": 2994040.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 57,
+    "zone_id": "A",
+    "trame_violation": 75198,
+    "horodatage_violation": 3007920.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 58,
+    "zone_id": "A",
+    "trame_violation": 76060,
+    "horodatage_violation": 3042400.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 59,
+    "zone_id": "A",
+    "trame_violation": 76060,
+    "horodatage_violation": 3042400.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 60,
+    "zone_id": "A",
+    "trame_violation": 76071,
+    "horodatage_violation": 3042840.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 61,
+    "zone_id": "A",
+    "trame_violation": 76423,
+    "horodatage_violation": 3056920.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 62,
+    "zone_id": "A",
+    "trame_violation": 76819,
+    "horodatage_violation": 3072760.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 64,
+    "zone_id": "A",
+    "trame_violation": 77340,
+    "horodatage_violation": 3093600.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 65,
+    "zone_id": "A",
+    "trame_violation": 77924,
+    "horodatage_violation": 3116960.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 66,
+    "zone_id": "A",
+    "trame_violation": 81167,
+    "horodatage_violation": 3246680.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 67,
+    "zone_id": "A",
+    "trame_violation": 81648,
+    "horodatage_violation": 3265920.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 68,
+    "zone_id": "A",
+    "trame_violation": 82895,
+    "horodatage_violation": 3315800.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 69,
+    "zone_id": "A",
+    "trame_violation": 83816,
+    "horodatage_violation": 3352640.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 70,
+    "zone_id": "A",
+    "trame_violation": 85424,
+    "horodatage_violation": 3416960.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 71,
+    "zone_id": "A",
+    "trame_violation": 90137,
+    "horodatage_violation": 3605480.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 72,
+    "zone_id": "A",
+    "trame_violation": 94588,
+    "horodatage_violation": 3783520.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 73,
+    "zone_id": "A",
+    "trame_violation": 95393,
+    "horodatage_violation": 3815720.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 75,
+    "zone_id": "A",
+    "trame_violation": 95630,
+    "horodatage_violation": 3825200.0
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 76,
+    "zone_id": "A",
+    "trame_violation": 103267,
+    "horodatage_violation": 4130680.0
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 3,
+    "zone_id": "A",
+    "trame_violation": 2704,
+    "horodatage_violation": 108160.0
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 2,
+    "zone_id": "B",
+    "trame_violation": 7827,
+    "horodatage_violation": 313080.0
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 3,
+    "zone_id": "B",
+    "trame_violation": 8214,
+    "horodatage_violation": 328560.0
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 4,
+    "zone_id": "B",
+    "trame_violation": 13719,
+    "horodatage_violation": 548760.0
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 5,
+    "zone_id": "B",
+    "trame_violation": 19640,
+    "horodatage_violation": 785600.0
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 9,
+    "zone_id": "B",
+    "trame_violation": 24345,
+    "horodatage_violation": 973800.0
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 10,
+    "zone_id": "B",
+    "trame_violation": 34620,
+    "horodatage_violation": 1384800.0
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 13,
+    "zone_id": "B",
+    "trame_violation": 51009,
+    "horodatage_violation": 2040360.0
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 12,
+    "zone_id": "B",
+    "trame_violation": 61509,
+    "horodatage_violation": 2460360.0
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 1,
+    "zone_id": "B",
+    "trame_violation": 2710,
+    "horodatage_violation": 108400.0
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 2,
+    "zone_id": "B",
+    "trame_violation": 7831,
+    "horodatage_violation": 313240.0
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 3,
+    "zone_id": "B",
+    "trame_violation": 8223,
+    "horodatage_violation": 328920.0
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 4,
+    "zone_id": "B",
+    "trame_violation": 13719,
+    "horodatage_violation": 548760.0
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 7,
+    "zone_id": "B",
+    "trame_violation": 17649,
+    "horodatage_violation": 705960.0
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 5,
+    "zone_id": "B",
+    "trame_violation": 19647,
+    "horodatage_violation": 785880.0
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 9,
+    "zone_id": "B",
+    "trame_violation": 24333,
+    "horodatage_violation": 973320.0
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 10,
+    "zone_id": "B",
+    "trame_violation": 34610,
+    "horodatage_violation": 1384400.0
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 13,
+    "zone_id": "B",
+    "trame_violation": 51013,
+    "horodatage_violation": 2040520.0
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 12,
+    "zone_id": "B",
+    "trame_violation": 61508,
+    "horodatage_violation": 2460320.0
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 16,
+    "zone_id": "B",
+    "trame_violation": 93551,
+    "horodatage_violation": 3742040.0
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 16,
+    "zone_id": "B",
+    "trame_violation": 93409,
+    "horodatage_violation": 3736360.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 1,
+    "zone_id": "zone_1",
+    "trame_violation": 664,
+    "horodatage_violation": 26560.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 2,
+    "zone_id": "zone_1",
+    "trame_violation": 2547,
+    "horodatage_violation": 101880.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 3,
+    "zone_id": "zone_1",
+    "trame_violation": 2828,
+    "horodatage_violation": 113120.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 4,
+    "zone_id": "zone_1",
+    "trame_violation": 6685,
+    "horodatage_violation": 267400.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 5,
+    "zone_id": "zone_1",
+    "trame_violation": 8724,
+    "horodatage_violation": 348960.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 6,
+    "zone_id": "zone_1",
+    "trame_violation": 12337,
+    "horodatage_violation": 493480.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 1,
+    "zone_id": "zone_1",
+    "trame_violation": 636,
+    "horodatage_violation": 25440.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 2,
+    "zone_id": "zone_1",
+    "trame_violation": 2469,
+    "horodatage_violation": 98760.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 3,
+    "zone_id": "zone_1",
+    "trame_violation": 2820,
+    "horodatage_violation": 112800.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 4,
+    "zone_id": "zone_1",
+    "trame_violation": 6069,
+    "horodatage_violation": 242760.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 5,
+    "zone_id": "zone_1",
+    "trame_violation": 6636,
+    "horodatage_violation": 265440.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 6,
+    "zone_id": "zone_1",
+    "trame_violation": 8739,
+    "horodatage_violation": 349560.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 7,
+    "zone_id": "zone_1",
+    "trame_violation": 10822,
+    "horodatage_violation": 432880.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 1,
+    "zone_id": "zone_1",
+    "trame_violation": 664,
+    "horodatage_violation": 26560.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 2,
+    "zone_id": "zone_1",
+    "trame_violation": 2511,
+    "horodatage_violation": 100440.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 3,
+    "zone_id": "zone_1",
+    "trame_violation": 2818,
+    "horodatage_violation": 112720.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 4,
+    "zone_id": "zone_1",
+    "trame_violation": 6096,
+    "horodatage_violation": 243840.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 5,
+    "zone_id": "zone_1",
+    "trame_violation": 6665,
+    "horodatage_violation": 266600.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 6,
+    "zone_id": "zone_1",
+    "trame_violation": 8725,
+    "horodatage_violation": 349000.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 7,
+    "zone_id": "zone_1",
+    "trame_violation": 12425,
+    "horodatage_violation": 497000.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 1,
+    "zone_id": "zone_1",
+    "trame_violation": 673,
+    "horodatage_violation": 26920.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 4,
+    "zone_id": "zone_1",
+    "trame_violation": 1989,
+    "horodatage_violation": 79560.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 2,
+    "zone_id": "zone_1",
+    "trame_violation": 2525,
+    "horodatage_violation": 101000.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 3,
+    "zone_id": "zone_1",
+    "trame_violation": 2830,
+    "horodatage_violation": 113200.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 4,
+    "zone_id": "zone_1",
+    "trame_violation": 6678,
+    "horodatage_violation": 267120.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 5,
+    "zone_id": "zone_1",
+    "trame_violation": 8759,
+    "horodatage_violation": 350360.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 6,
+    "zone_id": "zone_1",
+    "trame_violation": 12251,
+    "horodatage_violation": 490040.0
+  }
+]

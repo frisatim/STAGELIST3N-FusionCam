@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Local configuration and secrets
+.env
+.env.*
+config.local.yaml
+config.local.yml
+secrets.*
+*.key
+*.pem
+
+# Datasets and recordings are intentionally kept outside Git.
+dataset/
+dataset_objets_HD/
+dataset_output_batch/
+recordings/
+videos/
+*.mp4
+*.avi
+*.mkv
+*.mov
+
+# Model artifacts
+*.pt
+*.pth
+*.engine
+*.onnx
+*.torchscript
+*.tflite
+*.mlpackage
+weights/
+Modelstrained/
+
+# Training / inference outputs
+runs/
+wandb/
+logs/
+outputs/
+artifacts/
+
+# Large generated reports from campaigns
+Phase_3_Fusion_MultiCam/reports/
+!reports/
+!reports/**
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+*.code-workspace
+

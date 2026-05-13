@@ -1,0 +1,204 @@
+# =============================================================================
+#  POINTS DE REFERENCE POUR LA CALIBRATION HOMOGRAPHIQUE
+#  Phase 3.1 
+# =============================================================================
+#
+#  INSTRUCTIONS :
+#  1. Pour chaque caméra, liste de 6 à 10 points visibles DANS L'IMAGE
+#     dont nous connaissons la position exacte en mètres sur le plan de sol.
+#
+#  2. Origine (0, 0) = coin haut-gauche du plan (marqué en bleu sur plan_rdc.png)
+#     x = horizontal (vers la droite), y = vertical (vers le bas)
+#
+#  3. Types de points recommandés (AU NIVEAU DU SOL) :
+#     - Coins de machines
+#     - Pieds de poteaux / colonnes
+#     - Coins de carreaux au sol
+#     - Marquages au sol / lignes peintes
+#     - Coins de portes (seuil)
+#     - Coins de murs
+#
+#  4. Minimum 4 points par caméra, 6-8 recommandé, 10 = excellent
+#
+#  5. Chaque caméra peut avoir des points différents, il suffit que
+#     le point soit visible dans cette caméra spécifique.
+#
+# =============================================================================
+
+ref_points:
+
+  # --- SALLE 1 : cam_03, cam_05, cam_07 ---
+
+  cam_02:
+    - label: "Point_1"
+      metres: [5.69, 2.62]
+      description: "A remplir"
+    - label: "Point_2"
+      metres: [8.63, 2.60]
+      description: "A remplir"
+    - label: "Point_3"
+      metres: [5.509, 4.83]
+      description: "A remplir"
+    - label: "Point_4"
+      metres: [6.714, 4.82]
+      description: "A remplir"
+    - label: "Point_5"
+      metres: [7.794, 4.78]
+      description: "A remplir"
+    - label: "Point_6"
+      metres: [7.104, 5.94]
+      description: "A remplir"
+
+  cam_03:
+    - label: "Point_1"
+      metres: [5.22, 2.55]
+      description: "A remplir"
+    - label: "Point_2"
+      metres: [7.41, 4.63]
+      description: "A remplir"
+    - label: "Point_3"
+      metres: [4.58, 4.88]
+      description: "A remplir"
+    - label: "Point_4"
+      metres: [4.75, 6.22]
+      description: "A remplir"
+    - label: "Point_5"
+      metres: [3.12, 2.98]
+      description: "A remplir"
+    - label: "Point_6"
+      metres: [5.7, 3.09]
+      description: "A remplir"
+  cam_05:
+    - label: "Point_1"
+      metres: [7.794, 4.78]
+      description: "A remplir"
+    - label: "Point_2"
+      metres: [7.104, 5.94]
+      description: "A remplir"
+    - label: "Point_3"
+      metres: [7.11, 4.78]
+      description: "A remplir"
+    - label: "Point_4"
+      metres: [6.714, 4.82]
+      description: "A remplir"
+    - label: "Point_5"
+      metres: [5.509, 4.83]
+      description: "A remplir"
+    - label: "Point_6"
+      metres: [4.58, 4.84]
+      description: "A remplir"
+    - label: "Point_7"
+      metres: [5.7, 3.09]
+      description: "A remplir"
+
+  cam_07:
+    - label: "Point_1"
+      metres: [7.104, 3.18]
+      description: "A remplir"
+    - label: "Point_2"
+      metres: [8.68, 2.41]
+      description: "A remplir"
+    - label: "Point_3"
+      metres: [5.509, 4.83]
+      description: "A remplir"
+    - label: "Point_4"
+      metres: [6.714, 4.82]
+      description: "A remplir"
+    - label: "Point_5"
+      metres: [7.794, 4.78]
+      description: "A remplir"
+    - label: "Point_6"
+      metres: [7.104, 5.94]
+      description: "A remplir"
+
+  # --- SALLE 2 , overlap 1: cam_01, cam_04, cam_06, ---
+
+  cam_01:
+    - label: "Point_1"
+      metres: [5.96, 10]
+      description: "A remplir"
+    - label: "Point_2"
+      metres: [5.48, 11.895]
+      description: "A remplir"
+    - label: "Point_3"
+      metres: [6.08, 12.20]
+      description: "A remplir"
+    - label: "Point_4"
+      metres: [6.06, 13.26]
+      description: "A remplir"
+    - label: "Point_5"
+      metres: [4.78, 12.20]
+      description: "A remplir"
+    - label: "Point_6"
+      metres: [4.78, 13.26]
+      description: "A remplir"
+
+
+  cam_04:
+    - label: "Point_1"
+      metres: [2.69, 12.45]
+      description: "A remplir"
+    - label: "Point_2"
+      metres: [4.99, 12.20]
+      description: "A remplir"
+    - label: "Point_3"
+      metres: [5.10, 11.77]
+      description: "A remplir"
+    - label: "Point_4"
+      metres: [7.8, 12.19]
+      description: "A remplir"
+    - label: "Point_5"
+      metres: [8.04, 11.01]
+      description: "A remplir"
+    - label: "Point_6"
+      metres: [5.70, 2.6]
+      description: "A remplir"
+
+  cam_06:
+    - label: "Point_1"
+      metres: [3.0, 9.17]
+      description: "A remplir"
+    - label: "Point_2"
+      metres: [2.70, 12.30]
+      description: "A remplir"
+    - label: "Point_3"
+      metres: [3.625, 11.83]
+      description: "A remplir"
+    # - label: "Point_4"
+    #   metres: [4.26, 12.45]
+    #   description: "A remplir"
+    # - label: "Point_5"
+    #   metres: [4.78, 13.26]
+    #   description: "A remplir"
+    - label: "Point_6"
+      metres: [6.08, 12.20]
+      description: "A remplir"
+    - label: "Point_7"
+      metres: [4.50, 12.10]
+      description: "A remplir"    
+    - label: "Point_8"
+      metres: [5.44, 14.61]
+      description: "A remplir"    
+
+
+
+
+  cam_08:
+    - label: "Point_1"
+      metres: [4.78, 13.26]
+      description: "A remplir"
+    - label: "Point_2"
+      metres: [4.42, 12.10]
+      description: "A remplir"
+    - label: "Point_3"
+      metres: [3.625, 11.84]
+      description: "A remplir"
+    - label: "Point_4"
+      metres: [3.625, 12.45]
+      description: "A remplir"
+    - label: "Point_5"
+      metres: [4.24, 11.84]
+      description: "A remplir"
+    - label: "Point_6"
+      metres: [4.24, 12.45]
+      description: "A remplir"

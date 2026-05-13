@@ -1,0 +1,26 @@
+# Configuration ByteTrack pour le suivi multi-personnes
+# Utilisé via model.track(tracker="bytetrack.yaml") dans Ultralytics
+#
+# Référence : https://docs.ultralytics.com/modes/track/#tracking-arguments
+# Paramètres adaptés à la surveillance industrielle (mouvement lent, occlusions)
+
+tracker_type: bytetrack
+
+# Seuil de confiance élevé : seules les détections confiantes créent de nouveaux tracks
+track_high_thresh: 0.5
+
+# Seuil bas : les détections moins confiantes peuvent être associées à des tracks existants
+# (utile pour les occlusions partielles)
+track_low_thresh: 0.1
+
+# Seuil pour initier un NOUVEAU track (plus strict que track_high_thresh)
+new_track_thresh: 0.6
+
+# Nombre de frames sans détection avant de perdre définitivement un track
+# À 25 FPS : 30 frames = 1.2 secondes de "mémoire"
+track_buffer: 30
+
+# Seuil d'IoU pour l'association entre détections et tracks existants
+match_thresh: 0.8
+
+fuse_score: true

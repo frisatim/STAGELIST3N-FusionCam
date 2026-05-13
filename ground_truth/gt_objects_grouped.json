@@ -1,0 +1,712 @@
+[
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 1,
+    "classe_objet": "scie",
+    "zone_id": "A",
+    "trame_apparition": 0,
+    "horodatage_apparition": 0.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 1,
+    "classe_objet": "scie",
+    "zone_id": "A",
+    "trame_apparition": 0,
+    "horodatage_apparition": 0.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 1,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 0,
+    "horodatage_apparition": 0.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 1,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 0,
+    "horodatage_apparition": 0.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 1,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 0,
+    "horodatage_apparition": 0.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 2,
+    "classe_objet": "marteau",
+    "zone_id": "B",
+    "trame_apparition": 0,
+    "horodatage_apparition": 0.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 3,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 3676,
+    "horodatage_apparition": 147040.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 4,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 5243,
+    "horodatage_apparition": 209720.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 4,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 5278,
+    "horodatage_apparition": 211120.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 5,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 5376,
+    "horodatage_apparition": 215040.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 6,
+    "classe_objet": "maillet",
+    "trame_apparition": 6501,
+    "horodatage_apparition": 260040.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 7,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 7022,
+    "horodatage_apparition": 280880.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 7,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 7034,
+    "horodatage_apparition": 281360.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 2,
+    "classe_objet": "marteau",
+    "zone_id": "A",
+    "trame_apparition": 7769,
+    "horodatage_apparition": 310760.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 8,
+    "classe_objet": "téléphone",
+    "zone_id": "B",
+    "trame_apparition": 10074,
+    "horodatage_apparition": 402960.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 9,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 10283,
+    "horodatage_apparition": 411320.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 10,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 10296,
+    "horodatage_apparition": 411840.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 9,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 10296,
+    "horodatage_apparition": 411840.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 11,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 10528,
+    "horodatage_apparition": 421120.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 3,
+    "classe_objet": "verre",
+    "zone_id": "A",
+    "trame_apparition": 10795,
+    "horodatage_apparition": 431800.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 4,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "A",
+    "trame_apparition": 11035,
+    "horodatage_apparition": 441400.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 5,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "A",
+    "trame_apparition": 11545,
+    "horodatage_apparition": 461800.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_08",
+    "id_evenement": 5,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "A",
+    "trame_apparition": 11556,
+    "horodatage_apparition": 462240.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 12,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 12145,
+    "horodatage_apparition": 485800.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 13,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 12989,
+    "horodatage_apparition": 519560.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 6,
+    "classe_objet": "verre",
+    "zone_id": "A",
+    "trame_apparition": 13611,
+    "horodatage_apparition": 544440.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 14,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 14100,
+    "horodatage_apparition": 564000.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 15,
+    "classe_objet": "téléphone",
+    "zone_id": "B",
+    "trame_apparition": 16060,
+    "horodatage_apparition": 642400.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 7,
+    "classe_objet": "téléphone",
+    "zone_id": "A",
+    "trame_apparition": 17421,
+    "horodatage_apparition": 696840.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 16,
+    "classe_objet": "téléphone",
+    "zone_id": "B",
+    "trame_apparition": 18312,
+    "horodatage_apparition": 732480.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 17,
+    "classe_objet": "téléphone",
+    "zone_id": "B",
+    "trame_apparition": 18534,
+    "horodatage_apparition": 741360.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 18,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 18704,
+    "horodatage_apparition": 748160.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 18,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 18821,
+    "horodatage_apparition": 752840.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 8,
+    "classe_objet": "marteau",
+    "zone_id": "A",
+    "trame_apparition": 19608,
+    "horodatage_apparition": 784320.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 19,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 20977,
+    "horodatage_apparition": 839080.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 20,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "B",
+    "trame_apparition": 20977,
+    "horodatage_apparition": 839080.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 20,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "B",
+    "trame_apparition": 21005,
+    "horodatage_apparition": 840200.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 20,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "B",
+    "trame_apparition": 21011,
+    "horodatage_apparition": 840440.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 19,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 21011,
+    "horodatage_apparition": 840440.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 9,
+    "classe_objet": "scie",
+    "zone_id": "A",
+    "trame_apparition": 22802,
+    "horodatage_apparition": 912080.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 9,
+    "classe_objet": "scie",
+    "zone_id": "A",
+    "trame_apparition": 22856,
+    "horodatage_apparition": 914240.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 21,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "B",
+    "trame_apparition": 23182,
+    "horodatage_apparition": 927280.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 22,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 23318,
+    "horodatage_apparition": 932720.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 10,
+    "classe_objet": "marteau",
+    "zone_id": "A",
+    "trame_apparition": 24057,
+    "horodatage_apparition": 962280.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_01",
+    "id_evenement": 11,
+    "classe_objet": "marteau",
+    "zone_id": "A",
+    "trame_apparition": 24433,
+    "horodatage_apparition": 977320.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_02",
+    "id_evenement": 11,
+    "classe_objet": "marteau",
+    "zone_id": "A",
+    "trame_apparition": 24454,
+    "horodatage_apparition": 978160.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 12,
+    "classe_objet": "scie",
+    "zone_id": "A",
+    "trame_apparition": 34509,
+    "horodatage_apparition": 1380360.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_06",
+    "id_evenement": 13,
+    "classe_objet": "maillet",
+    "zone_id": "A",
+    "trame_apparition": 34509,
+    "horodatage_apparition": 1380360.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 12,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 34586,
+    "horodatage_apparition": 1383440.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 13,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 34599,
+    "horodatage_apparition": 1383960.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_04",
+    "id_evenement": 14,
+    "classe_objet": "marteau",
+    "zone_id": "B",
+    "trame_apparition": 34669,
+    "horodatage_apparition": 1386760.0,
+    "id_salle": 2
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 23,
+    "classe_objet": "téléphone",
+    "zone_id": "B",
+    "trame_apparition": 46364,
+    "horodatage_apparition": 1854560.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 24,
+    "classe_objet": "téléphone",
+    "zone_id": "B",
+    "trame_apparition": 46667,
+    "horodatage_apparition": 1866680.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 25,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 49444,
+    "horodatage_apparition": 1977760.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 26,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 64762,
+    "horodatage_apparition": 2590480.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 27,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 64979,
+    "horodatage_apparition": 2599160.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 28,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 67260,
+    "horodatage_apparition": 2690400.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 29,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "B",
+    "trame_apparition": 67287,
+    "horodatage_apparition": 2691480.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 28,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 67291,
+    "horodatage_apparition": 2691640.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 29,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "B",
+    "trame_apparition": 67291,
+    "horodatage_apparition": 2691640.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 30,
+    "classe_objet": "marteau",
+    "zone_id": "B",
+    "trame_apparition": 67351,
+    "horodatage_apparition": 2694040.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 30,
+    "classe_objet": "marteau",
+    "zone_id": "B",
+    "trame_apparition": 67384,
+    "horodatage_apparition": 2695360.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 31,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 67636,
+    "horodatage_apparition": 2705440.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 31,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 67637,
+    "horodatage_apparition": 2705480.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 32,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 67727,
+    "horodatage_apparition": 2709080.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 32,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 67732,
+    "horodatage_apparition": 2709280.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_03",
+    "id_evenement": 33,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 69823,
+    "horodatage_apparition": 2792920.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 34,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 70059,
+    "horodatage_apparition": 2802360.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 35,
+    "classe_objet": "marteau",
+    "zone_id": "B",
+    "trame_apparition": 70583,
+    "horodatage_apparition": 2823320.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 36,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 70981,
+    "horodatage_apparition": 2839240.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 37,
+    "classe_objet": "verre",
+    "zone_id": "B",
+    "trame_apparition": 71136,
+    "horodatage_apparition": 2845440.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 38,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "B",
+    "trame_apparition": 71522,
+    "horodatage_apparition": 2860880.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 39,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "B",
+    "trame_apparition": 73044,
+    "horodatage_apparition": 2921760.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 40,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 73055,
+    "horodatage_apparition": 2922200.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 41,
+    "classe_objet": "niveau à bulle",
+    "zone_id": "B",
+    "trame_apparition": 73282,
+    "horodatage_apparition": 2931280.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 42,
+    "classe_objet": "scie",
+    "zone_id": "B",
+    "trame_apparition": 73398,
+    "horodatage_apparition": 2935920.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_05",
+    "id_evenement": 43,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 73664,
+    "horodatage_apparition": 2946560.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 44,
+    "classe_objet": "maillet",
+    "zone_id": "B",
+    "trame_apparition": 88892,
+    "horodatage_apparition": 3555680.0,
+    "id_salle": 1
+  },
+  {
+    "id_camera": "cam_07",
+    "id_evenement": 45,
+    "classe_objet": "marteau",
+    "zone_id": "B",
+    "trame_apparition": 89097,
+    "horodatage_apparition": 3563880.0,
+    "id_salle": 1
+  }
+]

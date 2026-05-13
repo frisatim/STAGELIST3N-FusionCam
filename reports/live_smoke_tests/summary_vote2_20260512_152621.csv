@@ -1,0 +1,2 @@
+model_version,model,format,frames,detections,alerts,fusion_links,unique_global_ids,global_id_switches,latency_mean_ms,latency_median_ms,latency_p95_ms,latency_max_ms
+V3,yolov8s,fp32_engine,5153,4024,15,3057,63,17,13.506,12.94,16.654,766.747

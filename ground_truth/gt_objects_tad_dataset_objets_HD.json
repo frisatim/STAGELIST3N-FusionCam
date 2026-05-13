@@ -1,0 +1,345 @@
+[
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 1,
+    "classe_objet": "marteau",
+    "trame_apparition": 508,
+    "horodatage_apparition": 20320.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 2,
+    "classe_objet": "scie",
+    "trame_apparition": 537,
+    "horodatage_apparition": 21480.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 3,
+    "classe_objet": "perceuse",
+    "trame_apparition": 1997,
+    "horodatage_apparition": 79880.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 4,
+    "classe_objet": "tournevis",
+    "trame_apparition": 2010,
+    "horodatage_apparition": 80400.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 5,
+    "classe_objet": "pince",
+    "trame_apparition": 3533,
+    "horodatage_apparition": 141320.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 6,
+    "classe_objet": "cle allen",
+    "trame_apparition": 4122,
+    "horodatage_apparition": 164880.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 7,
+    "classe_objet": "bouteille",
+    "trame_apparition": 5995,
+    "horodatage_apparition": 239800.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 8,
+    "classe_objet": "bouteille",
+    "trame_apparition": 6116,
+    "horodatage_apparition": 244640.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 9,
+    "classe_objet": "cutter",
+    "trame_apparition": 6320,
+    "horodatage_apparition": 252800.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 10,
+    "classe_objet": "marteau",
+    "trame_apparition": 8036,
+    "horodatage_apparition": 321440.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 11,
+    "classe_objet": "tournevis",
+    "trame_apparition": 8167,
+    "horodatage_apparition": 326680.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 12,
+    "classe_objet": "marteau",
+    "trame_apparition": 8203,
+    "horodatage_apparition": 328120.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 13,
+    "classe_objet": "marteau",
+    "trame_apparition": 8802,
+    "horodatage_apparition": 352080.0
+  },
+  {
+    "id_camera": "cam_02_20260506_131002",
+    "id_evenement": 14,
+    "classe_objet": "verre",
+    "trame_apparition": 10772,
+    "horodatage_apparition": 430880.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 1,
+    "classe_objet": "scie",
+    "trame_apparition": 620,
+    "horodatage_apparition": 24800.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 2,
+    "classe_objet": "scie",
+    "trame_apparition": 928,
+    "horodatage_apparition": 37120.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 3,
+    "classe_objet": "perceuse",
+    "trame_apparition": 2171,
+    "horodatage_apparition": 86840.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 4,
+    "classe_objet": "bouteille",
+    "trame_apparition": 6119,
+    "horodatage_apparition": 244760.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 5,
+    "classe_objet": "marteau",
+    "trame_apparition": 8071,
+    "horodatage_apparition": 322840.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 6,
+    "classe_objet": "tournevis",
+    "trame_apparition": 8071,
+    "horodatage_apparition": 322840.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 7,
+    "classe_objet": "marteau",
+    "trame_apparition": 8780,
+    "horodatage_apparition": 351200.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 8,
+    "classe_objet": "bouteille",
+    "trame_apparition": 8999,
+    "horodatage_apparition": 359960.0
+  },
+  {
+    "id_camera": "cam_03_20260506_131002",
+    "id_evenement": 9,
+    "classe_objet": "bouteille",
+    "trame_apparition": 9039,
+    "horodatage_apparition": 361560.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 1,
+    "classe_objet": "marteau",
+    "trame_apparition": 493,
+    "horodatage_apparition": 19720.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 2,
+    "classe_objet": "scie",
+    "trame_apparition": 806,
+    "horodatage_apparition": 32240.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 3,
+    "classe_objet": "perceuse",
+    "trame_apparition": 2005,
+    "horodatage_apparition": 80200.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 4,
+    "classe_objet": "tournevis",
+    "trame_apparition": 2030,
+    "horodatage_apparition": 81200.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 4,
+    "classe_objet": "pince",
+    "trame_apparition": 3495,
+    "horodatage_apparition": 139800.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 5,
+    "classe_objet": "cle allen",
+    "trame_apparition": 3500,
+    "horodatage_apparition": 140000.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 6,
+    "classe_objet": "cle allen",
+    "trame_apparition": 4154,
+    "horodatage_apparition": 166160.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 7,
+    "classe_objet": "bouteille",
+    "trame_apparition": 5984,
+    "horodatage_apparition": 239360.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 8,
+    "classe_objet": "bouteille",
+    "trame_apparition": 6039,
+    "horodatage_apparition": 241560.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 9,
+    "classe_objet": "cutter",
+    "trame_apparition": 6181,
+    "horodatage_apparition": 247240.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 10,
+    "classe_objet": "tournevis",
+    "trame_apparition": 8037,
+    "horodatage_apparition": 321480.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 11,
+    "classe_objet": "marteau",
+    "trame_apparition": 8131,
+    "horodatage_apparition": 325240.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 12,
+    "classe_objet": "marteau",
+    "trame_apparition": 8656,
+    "horodatage_apparition": 346240.0
+  },
+  {
+    "id_camera": "cam_05_20260506_131002",
+    "id_evenement": 13,
+    "classe_objet": "marteau",
+    "trame_apparition": 8773,
+    "horodatage_apparition": 350920.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 1,
+    "classe_objet": "marteau",
+    "trame_apparition": 501,
+    "horodatage_apparition": 20040.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 2,
+    "classe_objet": "scie",
+    "trame_apparition": 512,
+    "horodatage_apparition": 20480.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 3,
+    "classe_objet": "tournevis",
+    "trame_apparition": 1967,
+    "horodatage_apparition": 78680.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 4,
+    "classe_objet": "perceuse",
+    "trame_apparition": 1989,
+    "horodatage_apparition": 79560.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 5,
+    "classe_objet": "pince",
+    "trame_apparition": 3446,
+    "horodatage_apparition": 137840.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 6,
+    "classe_objet": "cle allen",
+    "trame_apparition": 3471,
+    "horodatage_apparition": 138840.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 7,
+    "classe_objet": "bouteille",
+    "trame_apparition": 5972,
+    "horodatage_apparition": 238880.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 9,
+    "classe_objet": "bouteille",
+    "trame_apparition": 5988,
+    "horodatage_apparition": 239520.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 10,
+    "classe_objet": "marteau",
+    "trame_apparition": 7626,
+    "horodatage_apparition": 305040.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 11,
+    "classe_objet": "metre",
+    "trame_apparition": 7804,
+    "horodatage_apparition": 312160.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 12,
+    "classe_objet": "marteau",
+    "trame_apparition": 8616,
+    "horodatage_apparition": 344640.0
+  },
+  {
+    "id_camera": "cam_07_20260506_131002",
+    "id_evenement": 13,
+    "classe_objet": "verre",
+    "trame_apparition": 10672,
+    "horodatage_apparition": 426880.0
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "id_camera": "cam_01",
+    "type": "person_violation",
+    "frame_id": 1547,
+    "timestamp_ms": 61880.0
+  },
+  {
+    "id_camera": "cam_01",
+    "type": "person_violation",
+    "frame_id": 2167,
+    "timestamp_ms": 86680.0
+  },
+  {
+    "id_camera": "cam_07",
+    "type": "person_violation",
+    "frame_id": 290,
+    "timestamp_ms": 11600.0
+  },
+  {
+    "id_camera": "cam_07",
+    "type": "person_violation",
+    "frame_id": 1040,
+    "timestamp_ms": 41600.0
+  }
+]
