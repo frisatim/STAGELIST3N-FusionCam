@@ -12,6 +12,9 @@ Raccourcis :
   V .......... Marquer violation personne       -> gt_people.json
   O .......... Marquer apparition objet (TAD)   -> gt_objects_tad.json
   B .......... Dessiner BBox objet (YOLO)       -> dataset/images + labels
+  N .......... Image suivante (mode images)
+  P .......... Image precedente (mode images)
+  S .......... Passer l'image sans annotation (mode images)
   U .......... Annuler dernière annotation
   Suppr ...... Supprimer annotation proche
   L .......... Lister les annotations (console)
@@ -50,23 +53,23 @@ DATASET_IMAGES_DIR = _OUTPUT_ROOT / "images"
 DATASET_LABELS_DIR = _OUTPUT_ROOT / "labels"
 
 # ── Classes YOLO ─────────────────────────────────────────────────────────────
-# Touche clavier -> (class_id, nom)
-# L'ordre des class_id suit classes.txt du dataset YOLO.
-YOLO_CLASSES = [
-    # Anciennes classes
-    (ord("2"), 1, "marteau"),
-    (ord("3"), 2, "niveau a bulle"),
-    (ord("4"), 3, "scie"),
-    (ord("7"), 6, "verre"),
-    (ord("8"), 7, "perceuse"),
-    (ord("9"), 8, "bouteille"),
-    (ord("a"), 9, "pince"),
-    (ord("c"), 10, "cutter"),
-    (ord("m"), 11, "metre"),
-    (ord("t"), 12, "tournevis"),
-    (ord("k"), 13, "cle allen"),
-    (ord("p"), 14, "personne"),
+# Touche clavier -> (class_id, nom).
+# Par defaut, l'ordre suit dataset_objets_HD/data.yaml.
+DEFAULT_YOLO_CLASSES = [
+    (ord("1"), 0, "marteau"),
+    (ord("2"), 1, "niveau a bulle"),
+    (ord("3"), 2, "scie"),
+    (ord("4"), 3, "verre"),
+    (ord("5"), 4, "perceuse"),
+    (ord("6"), 5, "bouteille"),
+    (ord("7"), 6, "pince"),
+    (ord("8"), 7, "cutter"),
+    (ord("9"), 8, "metre"),
+    (ord("t"), 9, "tournevis"),
+    (ord("k"), 10, "cle allen"),
+    (ord("p"), 11, "personne"),
 ]
+YOLO_CLASSES = DEFAULT_YOLO_CLASSES.copy()
 
 # ── Objectifs du plan de recherche ───────────────────────────────────────────
 GOAL_VIOLATIONS = 50
@@ -88,9 +91,13 @@ KEY_O = ord("o")
 KEY_U = ord("u")
 KEY_L = ord("l")
 KEY_B = ord("b")
+KEY_N = ord("n")
+KEY_P = ord("p")
+KEY_S = ord("s")
 
 PROXIMITY_THRESHOLD = 15
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".avi", ".mov", ".ts"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
 # ── Utilitaires ──────────────────────────────────────────────────────────────
@@ -183,6 +190,85 @@ def list_videos(recordings_dir: Path,
             print(f"[ERREUR] Aucune vidéo trouvée dans {recordings_dir}")
         sys.exit(1)
     return videos
+
+
+def list_images(images_dir: Path,
+                pattern: str = "",
+                recursive: bool = True) -> list[Path]:
+    """Liste les images annotables depuis un dossier."""
+    if not images_dir.exists():
+        print(f"[ERREUR] Dossier images introuvable : {images_dir}")
+        sys.exit(1)
+
+    walker = images_dir.rglob("*") if recursive else images_dir.iterdir()
+    pattern_l = pattern.lower().strip()
+    images = []
+
+    for f in sorted(walker):
+        if not f.is_file() or f.suffix.lower() not in IMAGE_EXTENSIONS:
+            continue
+        if pattern_l and pattern_l not in f.stem.lower():
+            continue
+        images.append(f.resolve())
+
+    if not images:
+        if pattern_l:
+            print(f"[ERREUR] Aucune image '{pattern}' trouvée dans {images_dir}")
+        else:
+            print(f"[ERREUR] Aucune image trouvée dans {images_dir}")
+        sys.exit(1)
+    return images
+
+
+def load_yolo_classes_from_yaml(data_yaml: Path) -> list[tuple[int, int, str]]:
+    """Charge l'ordre des classes depuis un data.yaml YOLO.
+
+    Les touches restent ergonomiques: 1..9 puis T/K/P si besoin.
+    """
+    if not data_yaml.exists():
+        return DEFAULT_YOLO_CLASSES.copy()
+
+    with open(data_yaml, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+
+    names = data.get("names")
+    if isinstance(names, dict):
+        ordered_names = [str(names[i]) for i in sorted(names)]
+    elif isinstance(names, list):
+        ordered_names = [str(name) for name in names]
+    else:
+        return DEFAULT_YOLO_CLASSES.copy()
+
+    keys = list("123456789") + ["t", "k", "p", "a", "c", "m", "v", "x", "z"]
+    classes = []
+    for class_id, name in enumerate(ordered_names):
+        if class_id >= len(keys):
+            raise ValueError(
+                f"Trop de classes dans {data_yaml}: {len(ordered_names)} "
+                f"(max supporte par raccourcis: {len(keys)})"
+            )
+        classes.append((ord(keys[class_id]), class_id, name))
+    return classes
+
+
+def apply_yolo_classes(classes: list[tuple[int, int, str]]) -> None:
+    global YOLO_CLASSES
+    YOLO_CLASSES = classes
+
+
+def write_data_yaml(output_root: Path) -> None:
+    """Ecrit un data.yaml cohérent avec les classes actives."""
+    output_root.mkdir(parents=True, exist_ok=True)
+    names = {cid: name for _, cid, name in YOLO_CLASSES}
+    payload = {
+        "path": ".",
+        "train": "images",
+        "val": "images",
+        "nc": len(names),
+        "names": names,
+    }
+    with open(output_root / "data.yaml", "w", encoding="utf-8") as f:
+        yaml.safe_dump(payload, f, sort_keys=False, allow_unicode=True)
 
 
 # ── Zones interdites Phase 3 ────────────────────────────────────────────────
@@ -466,6 +552,35 @@ def draw_flash(frame, label: str, color: tuple):
                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
 
+def draw_image_hud(frame: np.ndarray, image_path: Path, index: int, total: int,
+                   stem: str, label_count: int, auto_next: bool) -> np.ndarray:
+    """HUD pour le mode annotation d'images."""
+    h, w = frame.shape[:2]
+    panel = np.zeros((PANEL_HEIGHT, w, 3), dtype=np.uint8)
+    cv2.putText(panel, f"Image {index + 1}/{total}", (10, 22),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 200, 255), 2)
+    cv2.putText(panel, image_path.name[:80], (180, 22),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.48, (220, 220, 220), 1)
+    cv2.putText(panel, f"Labels: {label_count}", (10, 52),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 1)
+    cv2.putText(panel, f"Stem: {stem[:60]}", (150, 52),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.48, (180, 180, 180), 1)
+    mode = "AUTO-NEXT apres BBox" if auto_next else "MULTI-BOX: N pour image suivante"
+    cv2.putText(panel, mode, (w - 360, 52),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 180, 255), 1)
+    cv2.putText(panel, "[B] bbox | [N] suivante | [P] precedente | [S] skip | [U] suppr dernier label | Q/Echap quitter",
+                (10, 82), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (150, 150, 150), 1)
+
+    bar_y = 98
+    cv2.rectangle(panel, (10, bar_y), (w - 10, bar_y + 8), (60, 60, 60), -1)
+    if total > 1:
+        progress = index / (total - 1)
+        cv2.rectangle(panel, (10, bar_y), (10 + int((w - 20) * progress), bar_y + 8),
+                      (0, 180, 255), -1)
+
+    return np.vstack([frame, panel])
+
+
 # ── Trackbar callback ───────────────────────────────────────────────────────
 
 def on_trackbar(val):
@@ -558,8 +673,9 @@ def annotate_object_bbox(frame, window_name: str) -> tuple[int, str, list[int]] 
     # ── Étape 2 : Menu HUD de sélection de classe ───────────────────────
     # Construire le menu texte
     menu_parts = []
-    for _, cid, name in YOLO_CLASSES:
-        menu_parts.append(f"[{cid + 1}] {name}")
+    for key_code, cid, name in YOLO_CLASSES:
+        key_label = chr(key_code).upper()
+        menu_parts.append(f"[{key_label}] {cid}:{name}")
     menu_line = " | ".join(menu_parts)
 
     # Mapping touche -> (class_id, class_name)
@@ -607,6 +723,21 @@ def save_yolo_image(frame, cam_id: str, frame_idx: int) -> str:
     return stem
 
 
+def save_yolo_source_image(frame: np.ndarray, source_path: Path) -> str:
+    """Sauvegarde une image source dans le nouveau dataset.
+
+    Le nom est conservé autant que possible pour faciliter le lien avec
+    dataset_objets_HD/images. Si le fichier existe déjà, il n'est pas réécrit.
+    """
+    DATASET_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    stem = source_path.stem.replace(" ", "_")
+    filepath = DATASET_IMAGES_DIR / f"{stem}.jpg"
+    if not filepath.exists():
+        cv2.imwrite(str(filepath), frame)
+        print(f"  [IMAGE] {filepath.relative_to(PROJECT_ROOT)}")
+    return stem
+
+
 def save_yolo_label(stem: str, class_id: int, bbox: list[int],
                     img_w: int, img_h: int) -> None:
     """Sauvegarde le label YOLO normalisé dans dataset/labels/train/.
@@ -635,6 +766,18 @@ def save_yolo_label(stem: str, class_id: int, bbox: list[int],
     print(f"  [LABEL] {filepath.relative_to(PROJECT_ROOT)}  "
           f"-> {class_id} {x_center:.4f} {y_center:.4f} "
           f"{w_norm:.4f} {h_norm:.4f}")
+
+
+def label_file_for_stem(stem: str) -> Path:
+    return DATASET_LABELS_DIR / f"{stem}.txt"
+
+
+def count_labels_for_stem(stem: str) -> int:
+    path = label_file_for_stem(stem)
+    if not path.exists():
+        return 0
+    with open(path, "r", encoding="utf-8") as f:
+        return sum(1 for line in f if line.strip())
 
 
 # ── Fonctions utilitaires annotations ────────────────────────────────────────
@@ -1084,6 +1227,101 @@ def annotate_video(video_info: dict,
     return gt_people, gt_objects_tad
 
 
+def annotate_image_folder(images: list[Path], auto_next: bool = True) -> None:
+    """Annotation YOLO depuis un dossier d'images.
+
+    Contrairement au mode vidéo, ce mode ne touche pas aux GT TAD/TRD. Il sert à
+    refaire un dataset objet: image source -> output/images + output/labels.
+    """
+    if not images:
+        return
+
+    ensure_dataset_dirs()
+    write_data_yaml(DATASET_IMAGES_DIR.parent)
+
+    window_name = "Annotation images - YOLO"
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(window_name, 1280, 720 + PANEL_HEIGHT)
+
+    index = 0
+    print(f"\n[MODE IMAGES] {len(images)} image(s) à annoter")
+    print("  B = dessiner une bbox | N = suivante | P = précédente | S = skip | U = supprimer dernier label")
+    print(f"  Auto-next après bbox : {'ON' if auto_next else 'OFF'}")
+
+    while 0 <= index < len(images):
+        image_path = images[index]
+        frame = cv2.imread(str(image_path))
+        if frame is None:
+            print(f"  [WARN] Image illisible, skip : {image_path}")
+            index += 1
+            continue
+
+        stem = image_path.stem.replace(" ", "_")
+        copied_stem = save_yolo_source_image(frame, image_path)
+        if copied_stem != stem:
+            stem = copied_stem
+
+        while True:
+            label_count = count_labels_for_stem(stem)
+            display = draw_image_hud(frame.copy(), image_path, index, len(images),
+                                     stem, label_count, auto_next)
+            cv2.imshow(window_name, display)
+            key = cv2.waitKeyEx(0)
+
+            if key in (KEY_ESC, KEY_Q):
+                cv2.destroyWindow(window_name)
+                return
+
+            if key == KEY_N or key == KEY_S:
+                index += 1
+                break
+
+            if key == KEY_P:
+                index = max(0, index - 1)
+                break
+
+            if key == KEY_U:
+                label_path = label_file_for_stem(stem)
+                if not label_path.exists():
+                    print("  [U] Aucun label à supprimer pour cette image.")
+                    continue
+                lines = label_path.read_text(encoding="utf-8").splitlines()
+                lines = [line for line in lines if line.strip()]
+                if not lines:
+                    print("  [U] Aucun label à supprimer pour cette image.")
+                    continue
+                removed = lines.pop()
+                label_path.write_text(("\n".join(lines) + "\n") if lines else "",
+                                      encoding="utf-8")
+                print(f"  [U] Label supprimé : {removed}")
+                continue
+
+            if key == KEY_B:
+                bbox_result = annotate_object_bbox(frame, window_name)
+                if bbox_result is None:
+                    continue
+
+                class_id, class_name, bbox = bbox_result
+                img_h, img_w = frame.shape[:2]
+                save_yolo_label(stem, class_id, bbox, img_w, img_h)
+                print(f"  [B] {image_path.name} -> '{class_name}' id={class_id} bbox={bbox}")
+
+                if auto_next:
+                    index += 1
+                    break
+
+        if index >= len(images):
+            break
+
+    cv2.destroyWindow(window_name)
+    n_images = len(list(DATASET_IMAGES_DIR.glob("*.jpg")))
+    n_labels = len(list(DATASET_LABELS_DIR.glob("*.txt")))
+    print(f"\n[TERMINÉ MODE IMAGES]")
+    print(f"  Images dataset : {DATASET_IMAGES_DIR} ({n_images})")
+    print(f"  Labels dataset : {DATASET_LABELS_DIR} ({n_labels})")
+    print(f"  data.yaml      : {DATASET_IMAGES_DIR.parent / 'data.yaml'}")
+
+
 # ── Contrôles ────────────────────────────────────────────────────────────────
 
 def print_controls():
@@ -1106,19 +1344,22 @@ def print_controls():
 ║    O ..... Apparition Objet (TAD)      -> gt_objects_tad.json║
 ║    B ..... Box Objet (YOLO) :                                ║
 ║            1. Dessiner la bbox (clic gauche + glisser)       ║
-║            2. Choisir la classe via le menu HUD :            ║
-║               [1] maillet     [2] marteau                    ║
-║               [3] niveau     [4] scie                        ║
-║               [5] tabouret   [6] telephone                   ║
-║               [7] verre      [8] perceuse                    ║
-║               [9] bouteille  [A] pince                       ║
-║               [C] cutter     [M] metre                       ║
-║               [T] tournevis  [K] cle allen                   ║
+║            2. Choisir la classe via le menu HUD              ║
+║               touches 1..9 puis T/K/P selon data.yaml        ║
 ║               [ESC] annuler                                  ║
 ║            -> Sauvegarde image + label YOLO automatiquement  ║
 ║    U ..... Annuler la dernière annotation                    ║
 ║    Suppr . Supprimer l'annotation la plus proche             ║
 ║    L ..... Lister les annotations (console)                  ║
+║                                                               ║
+║  MODE IMAGES (--source images) :                              ║
+║    B ..... Dessiner une bbox et choisir la classe             ║
+║    N ..... Image suivante                                     ║
+║    P ..... Image précédente                                   ║
+║    S ..... Skip image courante                                ║
+║    U ..... Supprimer le dernier label de l'image courante     ║
+║    Par défaut, après BBox validée, l'outil passe              ║
+║    automatiquement à l'image suivante.                        ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 """)
@@ -1140,6 +1381,12 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Outil d'annotation de vérité terrain multi-caméras.")
     parser.add_argument(
+        "--source",
+        choices=["videos", "images"],
+        default="videos",
+        help="Source à annoter: vidéos historiques ou dossier d'images YOLO "
+             "(défaut: videos)")
+    parser.add_argument(
         "--output-dir", "-o",
         default=BASE_OUTPUT_DIR,
         help=f"Dossier de sortie pour les images YOLO, labels et "
@@ -1153,6 +1400,16 @@ def parse_args():
         default=str(RECORDINGS_DIR),
         help="Dossier recordings à scanner (défaut: recordings/recordings)")
     parser.add_argument(
+        "--images-dir",
+        default=str(PROJECT_ROOT / BASE_OUTPUT_DIR / "images"),
+        help="Dossier d'images à scanner en mode --source images "
+             "(défaut: dataset_objets_HD/images)")
+    parser.add_argument(
+        "--classes-yaml",
+        default="",
+        help="data.yaml contenant l'ordre des classes. Par défaut, utilise "
+             "<images-dir>/../data.yaml si présent, sinon les classes internes.")
+    parser.add_argument(
         "--phase3-config",
         default=str(DEFAULT_PHASE3_CONFIG_PATH),
         help="Chemin du config.yaml Phase 3 contenant zones_interdites + homographies")
@@ -1164,6 +1421,11 @@ def parse_args():
         "--no-recursive",
         action="store_true",
         help="Désactive le scan récursif des sous-dossiers")
+    parser.add_argument(
+        "--multi-box-per-image",
+        action="store_true",
+        help="Mode images: rester sur la même image après une bbox pour annoter "
+             "plusieurs objets. Sans cette option, BBox validée => image suivante.")
     return parser.parse_args()
 
 
@@ -1171,7 +1433,9 @@ def apply_output_dir(output_dir: str):
     """Recalcule les chemins globaux selon le dossier de sortie choisi."""
     global GT_OBJECTS_TAD_PATH, DATASET_IMAGES_DIR, DATASET_LABELS_DIR
 
-    output_root = PROJECT_ROOT / output_dir
+    output_path = Path(output_dir)
+    output_root = output_path if output_path.is_absolute() else PROJECT_ROOT / output_path
+    output_root = output_root.resolve()
     GT_OBJECTS_TAD_PATH = output_root / "gt_objects_tad.json"
     DATASET_IMAGES_DIR = output_root / "images"
     DATASET_LABELS_DIR = output_root / "labels"
@@ -1181,7 +1445,36 @@ def main():
     args = parse_args()
     apply_output_dir(args.output_dir)
 
-    print(f"\n[CONFIG] Dossier de sortie : {PROJECT_ROOT / args.output_dir}")
+    print(f"\n[CONFIG] Dossier de sortie : {DATASET_IMAGES_DIR.parent}")
+
+    images_dir = resolve_cli_path(args.images_dir, PROJECT_ROOT)
+    classes_yaml = None
+    if args.classes_yaml:
+        classes_yaml = resolve_cli_path(args.classes_yaml, PROJECT_ROOT)
+    else:
+        candidate = images_dir.parent / "data.yaml"
+        if candidate.exists():
+            classes_yaml = candidate
+    if classes_yaml:
+        apply_yolo_classes(load_yolo_classes_from_yaml(classes_yaml))
+        print(f"[CONFIG] Classes YOLO : {classes_yaml}")
+    else:
+        print("[CONFIG] Classes YOLO : classes internes par défaut")
+
+    print_controls()
+
+    if args.source == "images":
+        print(f"[CONFIG] Dossier images source : {images_dir}")
+        ensure_dataset_dirs()
+        write_data_yaml(DATASET_IMAGES_DIR.parent)
+        images = list_images(
+            images_dir=images_dir,
+            pattern=args.pattern,
+            recursive=not args.no_recursive,
+        )
+        annotate_image_folder(images, auto_next=not args.multi_box_per_image)
+        cv2.destroyAllWindows()
+        return
 
     recordings_dir = Path(args.recordings_dir)
     if not recordings_dir.is_absolute():
@@ -1199,8 +1492,8 @@ def main():
     else:
         print("[CONFIG] Affichage des zones désactivé (--no-zones)")
 
-    print_controls()
     ensure_dataset_dirs()
+    write_data_yaml(DATASET_IMAGES_DIR.parent)
 
     videos = list_videos(
         recordings_dir=recordings_dir,
