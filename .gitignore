@@ -11,6 +11,7 @@ env/
 # Local configuration and secrets
 .env
 .env.*
+!.env.example
 config.local.yaml
 config.local.yml
 secrets.*
@@ -56,4 +57,3 @@ Phase_3_Fusion_MultiCam/reports/
 Thumbs.db
 .vscode/
 *.code-workspace
-

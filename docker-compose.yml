@@ -1,0 +1,54 @@
+services:
+  fusioncam:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: stagelist3n-fusioncam:cuda
+    container_name: fusioncam
+    working_dir: /workspace/code
+    shm_size: "8gb"
+    tty: true
+    stdin_open: true
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
+      PYTHONUNBUFFERED: "1"
+      FUSIONCAM_DATA_ROOT: /workspace/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ./:/workspace/code
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/datasets:/workspace/data/datasets
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/recordings:/workspace/data/recordings
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/models:/workspace/data/models
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/reports:/workspace/data/reports
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/exports:/workspace/data/exports
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: fusioncam-mediamtx
+    restart: unless-stopped
+    ports:
+      - "8554:8554"
+      - "8888:8888"
+      - "8889:8889"
+    volumes:
+      - ./docker/mediamtx.yml:/mediamtx.yml:ro
+
+  rtsp-replay:
+    image: jrottenberg/ffmpeg:6.1-nvidia
+    container_name: fusioncam-rtsp-replay
+    profiles: ["rtsp-replay"]
+    depends_on:
+      - mediamtx
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      echo 'Use docker/replay_rtsp_examples.md for per-camera ffmpeg commands.'
+      && sleep infinity
+    volumes:
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/recordings:/recordings:ro
