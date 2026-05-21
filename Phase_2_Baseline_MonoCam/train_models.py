@@ -11,6 +11,7 @@ Usage :
 """
 
 import argparse
+import gc
 import shutil
 import time
 from multiprocessing import freeze_support
@@ -396,13 +397,46 @@ def is_cuda_oom_error(exc: Exception) -> bool:
     return "out of memory" in msg or "cuda err" in msg or "acceleratorerror" in msg
 
 
+def safe_cuda_cleanup() -> None:
+    """Nettoyage best-effort après OOM CUDA.
+
+    Sur Windows, après certains `torch.AcceleratorError`, même
+    torch.cuda.empty_cache() peut échouer. Le nettoyage ne doit donc jamais
+    faire planter le script d'orchestration.
+    """
+    gc.collect()
+    if not torch.cuda.is_available():
+        return
+    try:
+        torch.cuda.empty_cache()
+    except Exception as e:
+        print(f"             [WARN] torch.cuda.empty_cache() a échoué: {e}")
+
+
+def parse_batch_overrides(raw: str) -> dict[str, int]:
+    """Parse `yolo11s=2,rtdetr-l=1` vers un dict."""
+    overrides: dict[str, int] = {}
+    if not raw:
+        return overrides
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise ValueError(f"Override batch invalide: {item!r}, attendu modele=batch")
+        name, value = item.split("=", 1)
+        overrides[name.strip()] = int(value.strip())
+    return overrides
+
+
 # ── Entraînement ─────────────────────────────────────────────────────────────
 
 def train_one(name: str, weights: str, model_type: str,
               data: str, epochs: int, imgsz: int, batch: int,
               project: str, device: str, min_batch: int = 2,
               oom_retries: int = 3, export_engine: bool = False,
-              engine_workspace: int | None = None) -> dict:
+              engine_workspace: int | None = None,
+              skip_existing: bool = False) -> dict:
     """Entraîne un modèle et retourne un résumé."""
     print(f"\n{'=' * 60}")
     print(f"  MODÈLE : {name}  ({weights})")
@@ -415,9 +449,16 @@ def train_one(name: str, weights: str, model_type: str,
     attempts = 0
     current_batch = batch
     train_error = None
+    best_pt = Path(project) / name / "weights" / "best.pt"
+    skipped_training = False
 
-    while attempts <= oom_retries:
+    if skip_existing and best_pt.exists():
+        skipped_training = True
+        print(f"  [SKIP] best.pt existe déjà : {best_pt}")
+
+    while not skipped_training and attempts <= oom_retries:
         attempts += 1
+        model = None
         try:
             model = load_model(weights, model_type)
             model.train(
@@ -447,13 +488,15 @@ def train_one(name: str, weights: str, model_type: str,
                 print(f"\n  [ATTENTION] OOM sur {name} avec batch={current_batch}.")
                 print(f"             Nouvelle tentative avec batch={next_batch}...")
                 current_batch = next_batch
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+                try:
+                    del model
+                except Exception:
+                    pass
+                safe_cuda_cleanup()
                 continue
             break
 
     elapsed = time.time() - t0
-    best_pt = Path(project) / name / "weights" / "best.pt"
 
     result = {
         "name": name,
@@ -463,14 +506,19 @@ def train_one(name: str, weights: str, model_type: str,
         "attempts": attempts,
         "best_pt": str(best_pt),
         "best_exists": best_pt.exists(),
-        "status": "OK" if train_error is None else "ECHEC",
+        "status": "OK" if train_error is None and best_pt.exists() else "ECHEC",
         "error": "" if train_error is None else str(train_error),
         "engine_path": "",
         "engine_exists": False,
         "engine_error": "",
+        "skipped_training": skipped_training,
     }
 
-    if train_error is not None:
+    if skipped_training and best_pt.exists():
+        size_mb = best_pt.stat().st_size / (1024 ** 2)
+        result["size_mb"] = size_mb
+        print(f"\n  [OK] {name} réutilisé — best.pt = {size_mb:.1f} Mo")
+    elif train_error is not None:
         print(f"\n  [ECHEC] {name} après {format_duration(elapsed)}")
         print(f"          Raison: {train_error}")
     elif best_pt.exists():
@@ -538,11 +586,22 @@ def parse_args():
                    help="Ne pas exporter en TensorRT .engine après entraînement")
     p.add_argument("--engine-workspace", type=int, default=None,
                    help="Workspace TensorRT en GiB si supporté par Ultralytics")
+    p.add_argument("--skip-existing", action="store_true",
+                   help="Ne réentraîne pas les modèles dont weights/best.pt existe déjà; "
+                        "exporte l'engine si nécessaire.")
+    p.add_argument("--batch-overrides", default="",
+                   help="Batch par modèle, ex: yolo11s=2,rtdetr-l=1. "
+                        "Remplace --batch pour ces modèles.")
     return p.parse_args()
 
 
 def main():
     args = parse_args()
+    try:
+        batch_overrides = parse_batch_overrides(args.batch_overrides)
+    except ValueError as e:
+        print(f"[ERREUR] {e}")
+        return
 
     data_path = resolve_data_yaml(args.data)
     if data_path is None:
@@ -590,6 +649,8 @@ def main():
     print(f"  Epochs   : {args.epochs}")
     print(f"  ImgSize  : {args.imgsz}")
     print(f"  Batch    : {args.batch}")
+    if batch_overrides:
+        print(f"  Batch/model : {batch_overrides}")
     print(f"  OOM      : retries={args.oom_retries}, min_batch={args.min_batch}")
     print(f"  Modèles  : {[m[0] for m in models]}")
     print(f"  Variants : {list(variant_data)}")
@@ -612,6 +673,7 @@ def main():
             print(f"  [{job_idx}/{total_jobs}] Lancement de {variant}/{name}...")
             print(f"{'─' * 60}")
 
+            model_batch = batch_overrides.get(name, args.batch)
             result = train_one(
                 name=name,
                 weights=weights,
@@ -619,13 +681,14 @@ def main():
                 data=str(runtime_data_yaml.resolve()),
                 epochs=args.epochs,
                 imgsz=args.imgsz,
-                batch=args.batch,
+                batch=model_batch,
                 project=variant_project,
                 device=device,
                 min_batch=args.min_batch,
                 oom_retries=args.oom_retries,
                 export_engine=not args.no_export_engine,
                 engine_workspace=args.engine_workspace,
+                skip_existing=args.skip_existing,
             )
             result["variant"] = variant
             results.append(result)
