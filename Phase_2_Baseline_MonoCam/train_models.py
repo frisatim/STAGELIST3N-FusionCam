@@ -438,10 +438,11 @@ def train_one(name: str, weights: str, model_type: str,
               engine_workspace: int | None = None,
               skip_existing: bool = False) -> dict:
     """Entraîne un modèle et retourne un résumé."""
+    project_path = Path(project).resolve()
     print(f"\n{'=' * 60}")
     print(f"  MODÈLE : {name}  ({weights})")
     print(f"  Type   : {model_type.upper()}")
-    print(f"  Sortie : {project}/{name}/")
+    print(f"  Sortie : {project_path / name}/")
     print(f"{'=' * 60}\n")
 
     t0 = time.time()
@@ -449,7 +450,7 @@ def train_one(name: str, weights: str, model_type: str,
     attempts = 0
     current_batch = batch
     train_error = None
-    best_pt = Path(project) / name / "weights" / "best.pt"
+    best_pt = project_path / name / "weights" / "best.pt"
     skipped_training = False
 
     if skip_existing and best_pt.exists():
@@ -467,7 +468,7 @@ def train_one(name: str, weights: str, model_type: str,
                 imgsz=imgsz,
                 batch=current_batch,
                 device=device,
-                project=project,
+                project=str(project_path),
                 name=name,
                 exist_ok=True,
                 # ── Data Augmentation agressive (Anti-Domain Shift) ─
