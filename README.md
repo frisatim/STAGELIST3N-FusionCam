@@ -28,6 +28,26 @@ docs/                         Notes de methode et politique de donnees.
 
 Les datasets complets, videos, poids `.pt`, engines TensorRT `.engine` et sorties d'entrainement ne sont pas versionnes dans Git. Ils doivent etre stockes dans des volumes externes ou conteneurs Docker.
 
+## Installation sur un nouveau PC
+
+Guide complet:
+
+```text
+docs/NEW_PC_SETUP.md
+```
+
+Setup Windows automatique:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+.\scripts\setup_new_pc_windows.ps1 -UseDesktopAivenv -InstallOptionalNetwork
+```
+
+Le script installe les outils de base via `winget` quand disponible, cree un
+environnement virtuel, installe PyTorch CUDA puis les dependances Python du
+projet. Les datasets, videos, poids `.pt` et engines `.engine` restent a copier
+manuellement car ils ne sont pas stockes dans Git.
+
 ## Pipeline Phase 3
 
 1. Lecture des flux camera ou videos enregistrees.
@@ -88,4 +108,3 @@ Les CSV frame-par-frame complets (`detections.csv`, `fusion_links.csv`, videos, 
 ## Securite des donnees
 
 Les URLs RTSP, mots de passe camera, IPs internes, videos et datasets complets ont ete exclus ou remplaces par des placeholders. Voir `docs/DATA_AND_SECURITY.md`.
-
