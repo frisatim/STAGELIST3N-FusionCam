@@ -109,6 +109,11 @@ Start MediaMTX:
 docker-compose up -d mediamtx
 ```
 
+By default the MediaMTX ports are bound to `127.0.0.1` in
+`docker-compose.yml`. Keep this default for local tests. If video replay must be
+reachable from another machine, expose the ports only on a trusted network and
+add the appropriate firewall or MediaMTX authentication rules.
+
 Then publish recordings with FFmpeg as documented in
 `docker/replay_rtsp_examples.md`.
 

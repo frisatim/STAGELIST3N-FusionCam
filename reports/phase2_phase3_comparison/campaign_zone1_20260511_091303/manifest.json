@@ -1,6 +1,6 @@
 {
   "mode": "recorded",
-  "config": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_3_Fusion_MultiCam\\config.yaml",
+  "config": "<PROJECT_ROOT>\\Phase_3_Fusion_MultiCam\\config.yaml",
   "cameras": [
     "cam_02",
     "cam_03",
@@ -13,12 +13,12 @@
     "cam_05": "cam_05_20260506_131002",
     "cam_07": "cam_07_20260506_131002"
   },
-  "tad_gt": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\dataset_objets_HD\\gt_objects_tad.json",
+  "tad_gt": "<PROJECT_ROOT>\\dataset_objets_HD\\gt_objects_tad.json",
   "video_map": {
-    "cam_02": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\recordings\\recordings\\Camera_2_2.3_20260506_131002.mp4",
-    "cam_03": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\recordings\\recordings\\Camera_3_2.4_20260506_131002.mp4",
-    "cam_05": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\recordings\\recordings\\Camera_5_2.6_20260506_131002.mp4",
-    "cam_07": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\recordings\\recordings\\Camera_7_2.11_20260506_131002.mp4"
+    "cam_02": "<PROJECT_ROOT>\\recordings\\recordings\\Camera_2_2.3_20260506_131002.mp4",
+    "cam_03": "<PROJECT_ROOT>\\recordings\\recordings\\Camera_3_2.4_20260506_131002.mp4",
+    "cam_05": "<PROJECT_ROOT>\\recordings\\recordings\\Camera_5_2.6_20260506_131002.mp4",
+    "cam_07": "<PROJECT_ROOT>\\recordings\\recordings\\Camera_7_2.11_20260506_131002.mp4"
   },
   "models": [
     {
@@ -29,7 +29,7 @@
       "format_label": "pt",
       "format_arg": "pt",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\rtdetr-l\\weights\\best.pt",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\rtdetr-l\\weights\\best.pt",
       "exists": true
     },
     {
@@ -40,7 +40,7 @@
       "format_label": "fp32_engine",
       "format_arg": "engine",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\rtdetr-l\\weights\\best.engine",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\rtdetr-l\\weights\\best.engine",
       "exists": true
     },
     {
@@ -51,7 +51,7 @@
       "format_label": "pt",
       "format_arg": "pt",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolo11s\\weights\\best.pt",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolo11s\\weights\\best.pt",
       "exists": true
     },
     {
@@ -62,7 +62,7 @@
       "format_label": "fp32_engine",
       "format_arg": "engine",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolo11s\\weights\\best.engine",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolo11s\\weights\\best.engine",
       "exists": true
     },
     {
@@ -73,7 +73,7 @@
       "format_label": "pt",
       "format_arg": "pt",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolov8n\\weights\\best.pt",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolov8n\\weights\\best.pt",
       "exists": true
     },
     {
@@ -84,7 +84,7 @@
       "format_label": "fp32_engine",
       "format_arg": "engine",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolov8n\\weights\\best.engine",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolov8n\\weights\\best.engine",
       "exists": true
     },
     {
@@ -95,7 +95,7 @@
       "format_label": "pt",
       "format_arg": "pt",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolov8s\\weights\\best.pt",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolov8s\\weights\\best.pt",
       "exists": true
     },
     {
@@ -106,7 +106,7 @@
       "format_label": "fp32_engine",
       "format_arg": "engine",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolov8s\\weights\\best.engine",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V2\\yolov8s\\weights\\best.engine",
       "exists": true
     },
     {
@@ -117,7 +117,7 @@
       "format_label": "pt",
       "format_arg": "pt",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\rtdetr-l\\weights\\best.pt",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\rtdetr-l\\weights\\best.pt",
       "exists": true
     },
     {
@@ -128,7 +128,7 @@
       "format_label": "fp32_engine",
       "format_arg": "engine",
       "suffix_arg": "fp32_best",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\rtdetr-l\\weights\\best_fp32_best.engine",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\rtdetr-l\\weights\\best_fp32_best.engine",
       "exists": true
     },
     {
@@ -139,7 +139,7 @@
       "format_label": "pt",
       "format_arg": "pt",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolo11s\\weights\\best.pt",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolo11s\\weights\\best.pt",
       "exists": true
     },
     {
@@ -150,7 +150,7 @@
       "format_label": "fp32_engine",
       "format_arg": "engine",
       "suffix_arg": "fp32_best",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolo11s\\weights\\best_fp32_best.engine",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolo11s\\weights\\best_fp32_best.engine",
       "exists": true
     },
     {
@@ -161,7 +161,7 @@
       "format_label": "pt",
       "format_arg": "pt",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolov8n\\weights\\best.pt",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolov8n\\weights\\best.pt",
       "exists": true
     },
     {
@@ -172,7 +172,7 @@
       "format_label": "fp32_engine",
       "format_arg": "engine",
       "suffix_arg": "fp32_best",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolov8n\\weights\\best_fp32_best.engine",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolov8n\\weights\\best_fp32_best.engine",
       "exists": true
     },
     {
@@ -183,7 +183,7 @@
       "format_label": "pt",
       "format_arg": "pt",
       "suffix_arg": "",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolov8s\\weights\\best.pt",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolov8s\\weights\\best.pt",
       "exists": true
     },
     {
@@ -194,7 +194,7 @@
       "format_label": "fp32_engine",
       "format_arg": "engine",
       "suffix_arg": "fp32_best",
-      "weights_path": "C:\\Users\\frisa\\Desktop\\BenchmarkingAI\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolov8s\\weights\\best_fp32_best.engine",
+      "weights_path": "<PROJECT_ROOT>\\Phase_2_Baseline_MonoCam\\Modelstrained\\V3\\yolov8s\\weights\\best_fp32_best.engine",
       "exists": true
     }
   ],
