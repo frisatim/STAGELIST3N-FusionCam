@@ -15,12 +15,14 @@ delivery/
       dataset_objets_HD/
       dataset/
     recordings/
-      Camera_*.mp4
+      recordings/
+        Camera_*.mp4
     models/
       V2/
       V3/
       V4/
     reports/
+      Phase_3_Fusion_MultiCam/
     exports/
 ```
 
@@ -58,7 +60,23 @@ python3 scripts/prepare_delivery_layout.py \
 ```
 
 Then manually copy datasets, recordings, models and reports into the created
-folders.
+folders, or use the USB copy helper on Windows:
+
+```powershell
+.\scripts\copy_heavy_data_from_usb.ps1 -SourceRoot E:\BenchmarkingAI
+```
+
+This command accepts either the original full project folder or an already
+prepared `STAGELIST3N-FusionCam-data` folder on the USB drive.
+
+For native Windows runs outside Docker, create local junctions after the copy:
+
+```powershell
+.\scripts\link_external_data_windows.ps1
+```
+
+The junctions expose the external data at the historical paths used by the
+Python scripts without duplicating large files inside Git.
 
 ## Build
 
@@ -101,6 +119,18 @@ Paths in configs may need to be adapted to the mounted data directories:
 /workspace/data/reports
 ```
 
+For compatibility with the existing research scripts, Docker Compose also mounts
+the same external data into the historical paths:
+
+```text
+/workspace/code/dataset
+/workspace/code/dataset_objets_HD
+/workspace/code/dataset_objets_V4
+/workspace/code/recordings
+/workspace/code/Phase_2_Baseline_MonoCam/Modelstrained
+/workspace/code/Phase_3_Fusion_MultiCam/reports
+```
+
 ## RTSP Replay From Recordings
 
 Start MediaMTX:
@@ -130,3 +160,7 @@ Recommended files:
 
 Keep both `.pt` and `.engine` when available. If the `.engine` fails on another
 machine, regenerate it from the `.pt`.
+
+Do not place datasets, recordings, `.pt`, `.engine` or real RTSP credentials in
+Git. Keep them in `STAGELIST3N-FusionCam-data` or another private storage
+location.

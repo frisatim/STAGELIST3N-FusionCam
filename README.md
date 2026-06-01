@@ -36,6 +36,12 @@ Guide complet:
 docs/NEW_PC_SETUP.md
 ```
 
+Checklist de livraison finale avec Docker, donnees lourdes et copie USB:
+
+```text
+docs/FINAL_DELIVERY_CHECKLIST.md
+```
+
 Setup Windows automatique:
 
 ```powershell
@@ -47,6 +53,13 @@ Le script installe les outils de base via `winget` quand disponible, cree un
 environnement virtuel, installe PyTorch CUDA puis les dependances Python du
 projet. Les datasets, videos, poids `.pt` et engines `.engine` restent a copier
 manuellement car ils ne sont pas stockes dans Git.
+
+Copie depuis une cle USB ou un disque externe:
+
+```powershell
+.\scripts\copy_heavy_data_from_usb.ps1 -SourceRoot E:\BenchmarkingAI
+.\scripts\link_external_data_windows.ps1
+```
 
 ## Pipeline Phase 3
 

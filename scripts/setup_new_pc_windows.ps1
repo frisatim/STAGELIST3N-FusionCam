@@ -14,11 +14,13 @@ Notes:
 [CmdletBinding()]
 param(
     [string]$VenvPath = ".venv",
+    [string]$DataDir = "../STAGELIST3N-FusionCam-data",
     [string]$TorchIndexUrl = "https://download.pytorch.org/whl/cu128",
     [switch]$UseDesktopAivenv,
     [switch]$SkipWinget,
     [switch]$InstallTensorRT,
-    [switch]$InstallOptionalNetwork
+    [switch]$InstallOptionalNetwork,
+    [switch]$SkipDataLayout
 )
 
 $ErrorActionPreference = "Stop"
@@ -121,6 +123,12 @@ Invoke-Step "Install project Python dependencies" {
     & $VenvPython -m pip install -r requirements.txt
 }
 
+if (-not $SkipDataLayout) {
+    Invoke-Step "Prepare external heavy-data layout at $DataDir" {
+        & $VenvPython scripts/prepare_delivery_layout.py --data-dir $DataDir
+    }
+}
+
 if ($InstallTensorRT) {
     Invoke-Step "Install optional TensorRT Python package" {
         & $VenvPython -m pip install tensorrt
@@ -164,5 +172,11 @@ Write-Host "Setup complete." -ForegroundColor Green
 Write-Host "Activate the environment with:"
 Write-Host "  $VenvPath\Scripts\Activate.ps1"
 Write-Host ""
+Write-Host "If heavy data is on a USB drive, copy it with:"
+Write-Host "  .\scripts\copy_heavy_data_from_usb.ps1 -SourceRoot E:\BenchmarkingAI"
+Write-Host ""
+Write-Host "For native Windows runs, link external data back to legacy paths with:"
+Write-Host "  .\scripts\link_external_data_windows.ps1"
+Write-Host ""
 Write-Host "Recommended smoke test:"
-Write-Host "  python -m pytest Phase_4_Network_Latency"
+Write-Host "  python -m pytest Phase_3_Fusion_MultiCam/test_campaign_utils_pytest.py -q"

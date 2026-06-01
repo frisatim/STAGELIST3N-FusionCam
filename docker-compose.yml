@@ -28,6 +28,14 @@ services:
       - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/models:/workspace/data/models
       - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/reports:/workspace/data/reports
       - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/exports:/workspace/data/exports
+      # Legacy mounts used by the research scripts. They keep the code
+      # unchanged while heavy assets remain outside Git.
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/datasets/dataset:/workspace/code/dataset
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/datasets/dataset_objets_HD:/workspace/code/dataset_objets_HD
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/datasets/dataset_objets_V4:/workspace/code/dataset_objets_V4
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/recordings:/workspace/code/recordings
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/models:/workspace/code/Phase_2_Baseline_MonoCam/Modelstrained
+      - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/reports/Phase_3_Fusion_MultiCam:/workspace/code/Phase_3_Fusion_MultiCam/reports
 
   mediamtx:
     image: bluenviron/mediamtx:latest

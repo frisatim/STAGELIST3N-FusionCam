@@ -69,17 +69,56 @@ These files are intentionally not stored in Git:
 - `Phase_2_Baseline_MonoCam/Modelstrained/`
 - model files such as `*.pt`, `*.engine`, `*.onnx`
 
-Copy them from the old PC, an external disk, or a shared drive.
+Copy them from the old PC, an external disk, or a shared drive into the
+standard external data folder:
+
+```text
+..\STAGELIST3N-FusionCam-data
+```
+
+Recommended USB workflow:
+
+```powershell
+.\scripts\copy_heavy_data_from_usb.ps1 -SourceRoot E:\BenchmarkingAI
+```
+
+If the USB already contains a prepared `STAGELIST3N-FusionCam-data` folder:
+
+```powershell
+.\scripts\copy_heavy_data_from_usb.ps1 -SourceRoot E:\
+```
 
 Expected examples:
 
 ```text
-dataset_objets_HD/gt_objects_tad.json
-gt_people.json
-recordings/recordings/*.mp4
-Phase_2_Baseline_MonoCam/Modelstrained/V4/person_objects/yolov8s/weights/best.pt
-Phase_2_Baseline_MonoCam/Modelstrained/V4/person_objects/yolov8s/weights/best.engine
+..\STAGELIST3N-FusionCam-data\datasets\dataset_objets_HD\gt_objects_tad.json
+..\STAGELIST3N-FusionCam-data\datasets\dataset_objets_V4\data.yaml
+..\STAGELIST3N-FusionCam-data\recordings\recordings\*.mp4
+..\STAGELIST3N-FusionCam-data\models\V4\person_objects\yolov8s\weights\best.pt
+..\STAGELIST3N-FusionCam-data\models\V4\person_objects\yolov8s\weights\best.engine
 ```
+
+The Docker setup mounts this external data folder back into the legacy paths
+used by the scripts. For native Windows execution, either keep the files in the
+historical repo paths or create directory junctions. The simplest native option
+is to create junctions after copying:
+
+```powershell
+.\scripts\link_external_data_windows.ps1
+```
+
+This exposes the external data at the legacy paths expected by the scripts:
+
+```text
+dataset
+dataset_objets_HD
+dataset_objets_V4
+recordings
+Phase_2_Baseline_MonoCam\Modelstrained
+Phase_3_Fusion_MultiCam\reports
+```
+
+For Docker execution, keep the standard external layout above.
 
 ## 5. Validate the environment
 
@@ -94,7 +133,10 @@ Run checks:
 ```powershell
 python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
 python -c "import cv2; print(cv2.__version__); print('GStreamer' in cv2.getBuildInformation())"
-python -m pytest Phase_4_Network_Latency
+python -m pytest Phase_3_Fusion_MultiCam/test_campaign_utils_pytest.py -q
+Test-Path ..\STAGELIST3N-FusionCam-data\models\V4
+Test-Path ..\STAGELIST3N-FusionCam-data\recordings\recordings
+Test-Path ..\STAGELIST3N-FusionCam-data\datasets\dataset_objets_V4
 ```
 
 ## 6. Phase 3 smoke tests
@@ -142,6 +184,8 @@ http://127.0.0.1:8765/
 - `torch.cuda.is_available() == False`: reinstall the NVIDIA driver and verify
   the PyTorch CUDA wheel index.
 - TensorRT `.engine` fails to load: regenerate the engine on the new PC.
+- `python` points to `C:\Program Files (x86)\wapt\python.exe`: use `py -3.12`
+  to create the venv, then activate the venv before installing dependencies.
 - GStreamer does not open RTSP: verify `C:\gstreamer\1.0\msvc_x86_64\bin` is in
   `PATH`, then restart PowerShell.
 - 4/8 cameras have low FPS with display enabled: use `--no-display

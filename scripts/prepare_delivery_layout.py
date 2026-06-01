@@ -15,11 +15,13 @@ DEFAULT_DIRS = [
     "datasets/dataset_objets_V4",
     "datasets/dataset_objets_HD",
     "datasets/dataset",
-    "recordings",
+    "recordings/recordings",
     "models/V2",
     "models/V3",
     "models/V4",
-    "reports",
+    "reports/Phase_2_Baseline_MonoCam",
+    "reports/Phase_3_Fusion_MultiCam",
+    "reports/Phase_4_Network_Latency",
     "exports",
 ]
 
@@ -52,8 +54,9 @@ def main() -> None:
             "This folder is intentionally kept outside Git.\n\n"
             "Expected content:\n\n"
             "- `datasets/`: training and evaluation datasets.\n"
-            "- `recordings/`: MP4/AVI camera recordings.\n"
-            "- `models/`: trained `.pt` weights and optional TensorRT `.engine` files.\n"
+            "- `recordings/recordings/`: MP4/AVI camera recordings.\n"
+            "- `models/`: trained `.pt` weights and optional TensorRT `.engine` files,\n"
+            "  using the same internal layout as `Phase_2_Baseline_MonoCam/Modelstrained`.\n"
             "- `reports/`: large campaign outputs and logs.\n"
             "- `exports/`: packaged results for delivery.\n",
             encoding="utf-8",
