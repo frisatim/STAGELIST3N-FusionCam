@@ -26,8 +26,25 @@ PHASE3_DIR = PROJECT_ROOT / "Phase_3_Fusion_MultiCam"
 MODELSTRAINED_DIR = PHASE2_DIR / "Modelstrained"
 DEFAULT_CONFIG = PHASE3_DIR / "config.yaml"
 DEFAULT_REPORTS_DIR = PHASE3_DIR / "reports"
-DEFAULT_GT_OBJECTS_TAD = PROJECT_ROOT / "dataset_objets_HD" / "gt_objects_tad.json"
-DEFAULT_GT_PEOPLE = PROJECT_ROOT / "gt_people.json"
+
+
+def first_existing_path(*paths: Path) -> Path:
+    """Return the first existing path, or the historical default if none exist."""
+    for path in paths:
+        if path.exists():
+            return path
+    return paths[0]
+
+
+DEFAULT_GT_OBJECTS_TAD = first_existing_path(
+    PROJECT_ROOT / "dataset_objets_HD" / "gt_objects_tad.json",
+    PROJECT_ROOT / "ground_truth" / "gt_objects_tad_dataset_objets_HD.json",
+    PROJECT_ROOT / "ground_truth" / "gt_objects_tad.json",
+)
+DEFAULT_GT_PEOPLE = first_existing_path(
+    PROJECT_ROOT / "gt_people.json",
+    PROJECT_ROOT / "ground_truth" / "gt_people.json",
+)
 PERSON_CLASS_ID = 11
 
 ZONE1_CAMERAS = ["cam_02", "cam_03", "cam_05", "cam_07"]

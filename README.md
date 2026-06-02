@@ -28,6 +28,12 @@ docs/                         Notes de methode et politique de donnees.
 
 Les datasets complets, videos, poids `.pt`, engines TensorRT `.engine` et sorties d'entrainement ne sont pas versionnes dans Git. Ils doivent etre stockes dans des volumes externes ou conteneurs Docker.
 
+Architecture officielle code + donnees :
+
+```text
+docs/DATA_LAYOUT.md
+```
+
 ## Installation sur un nouveau PC
 
 Guide complet:
@@ -59,6 +65,7 @@ Copie depuis une cle USB ou un disque externe:
 ```powershell
 .\scripts\copy_heavy_data_from_usb.ps1 -SourceRoot E:\BenchmarkingAI
 .\scripts\link_external_data_windows.ps1
+python scripts\verify_data_layout.py --model-version V4 --model yolov8s
 ```
 
 ## Pipeline Phase 3

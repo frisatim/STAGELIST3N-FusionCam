@@ -69,6 +69,12 @@ These files are intentionally not stored in Git:
 - `Phase_2_Baseline_MonoCam/Modelstrained/`
 - model files such as `*.pt`, `*.engine`, `*.onnx`
 
+The official target layout is documented in:
+
+```text
+docs/DATA_LAYOUT.md
+```
+
 Copy them from the old PC, an external disk, or a shared drive into the
 standard external data folder:
 
@@ -134,6 +140,7 @@ Run checks:
 python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
 python -c "import cv2; print(cv2.__version__); print('GStreamer' in cv2.getBuildInformation())"
 python -m pytest Phase_3_Fusion_MultiCam/test_campaign_utils_pytest.py -q
+python scripts\verify_data_layout.py --model-version V4 --model yolov8s
 Test-Path ..\STAGELIST3N-FusionCam-data\models\V4
 Test-Path ..\STAGELIST3N-FusionCam-data\recordings\recordings
 Test-Path ..\STAGELIST3N-FusionCam-data\datasets\dataset_objets_V4

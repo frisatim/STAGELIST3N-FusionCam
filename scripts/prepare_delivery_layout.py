@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import shutil
 
 
 DEFAULT_DIRS = [
@@ -38,6 +39,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    repo_root = Path(__file__).resolve().parent.parent
     root = Path(args.data_dir).resolve()
     root.mkdir(parents=True, exist_ok=True)
 
@@ -61,6 +63,20 @@ def main() -> None:
             "- `exports/`: packaged results for delivery.\n",
             encoding="utf-8",
         )
+
+    gt_people_src = repo_root / "ground_truth" / "gt_people.json"
+    gt_objects_src = repo_root / "ground_truth" / "gt_objects_tad_dataset_objets_HD.json"
+    if not gt_objects_src.exists():
+        gt_objects_src = repo_root / "ground_truth" / "gt_objects_tad.json"
+
+    gt_people_dst = root / "ground_truth" / "gt_people.json"
+    gt_objects_dst = root / "datasets" / "dataset_objets_HD" / "gt_objects_tad.json"
+    gt_people_dst.parent.mkdir(parents=True, exist_ok=True)
+    gt_objects_dst.parent.mkdir(parents=True, exist_ok=True)
+    if gt_people_src.exists() and not gt_people_dst.exists():
+        shutil.copy2(gt_people_src, gt_people_dst)
+    if gt_objects_src.exists() and not gt_objects_dst.exists():
+        shutil.copy2(gt_objects_src, gt_objects_dst)
 
     print(f"Prepared heavy-data layout: {root}")
     for rel in DEFAULT_DIRS:

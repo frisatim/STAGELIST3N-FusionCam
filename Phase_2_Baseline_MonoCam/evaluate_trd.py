@@ -47,7 +47,17 @@ CONFIG_PATH = PROJECT_ROOT / "ExperimentsCAS" / "config.yaml"
 ZONES_JSON_PATH = SCRIPT_DIR / "zones_config.json"
 
 # Verite terrain (un evenement = une intrusion reelle datee)
-GT_PATH = PROJECT_ROOT / "gt_people.json"
+GT_PATH = next(
+    (
+        path
+        for path in (
+            PROJECT_ROOT / "gt_people.json",
+            PROJECT_ROOT / "ground_truth" / "gt_people.json",
+        )
+        if path.exists()
+    ),
+    PROJECT_ROOT / "gt_people.json",
+)
 
 # Dossier racine des poids entraines
 RUNS_DIR = SCRIPT_DIR / "Modelstrained" / "V2"

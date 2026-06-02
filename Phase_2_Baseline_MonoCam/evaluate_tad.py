@@ -34,7 +34,18 @@ import torch
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = Path(__file__).resolve().parent
 RUNS_DIR = PROJECT_ROOT / "Phase_2_Baseline_MonoCam" / "Modelstrained" / "V2"
-GT_PATH = PROJECT_ROOT / "dataset_objets_HD" / "gt_objects_tad.json"
+GT_PATH = next(
+    (
+        path
+        for path in (
+            PROJECT_ROOT / "dataset_objets_HD" / "gt_objects_tad.json",
+            PROJECT_ROOT / "ground_truth" / "gt_objects_tad_dataset_objets_HD.json",
+            PROJECT_ROOT / "ground_truth" / "gt_objects_tad.json",
+        )
+        if path.exists()
+    ),
+    PROJECT_ROOT / "dataset_objets_HD" / "gt_objects_tad.json",
+)
 OUTPUT_DIR = SCRIPT_DIR / "Modelstrained" / "TAD"
 
 # Modeles a evaluer : (nom court, sous-dossier runs, type)

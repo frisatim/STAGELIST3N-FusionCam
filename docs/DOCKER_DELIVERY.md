@@ -6,6 +6,8 @@ volumes.
 
 ## Recommended Delivery Layout
 
+The canonical data layout is documented in `docs/DATA_LAYOUT.md`.
+
 ```text
 delivery/
   STAGELIST3N-FusionCam/          # Git repository
@@ -103,11 +105,23 @@ Example after placing recordings and models in the mounted data folder:
 ```bash
 docker-compose run --rm fusioncam \
   python3 Phase_3_Fusion_MultiCam/run_recorded_campaign.py \
-    --versions V4 \
+    --dataset-version V4 \
     --models yolov8s \
     --formats pt \
     --no-display \
-    --skip-phase2
+    --device cuda:0 \
+    --phase2-device gpu \
+    --phase2-imgsz 960
+```
+
+Before running campaigns, verify the mounts:
+
+```bash
+docker-compose run --rm fusioncam \
+  python3 scripts/verify_data_layout.py \
+    --data-dir /workspace/data \
+    --model-version V4 \
+    --model yolov8s
 ```
 
 Paths in configs may need to be adapted to the mounted data directories:
