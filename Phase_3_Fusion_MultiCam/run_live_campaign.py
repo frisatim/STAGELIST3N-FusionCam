@@ -22,6 +22,7 @@ from campaign_utils import (
     write_csv,
     write_manifest,
 )
+from metadata_publisher import MetadataPublisher
 from video_capture import CaptureOptions
 
 
@@ -78,6 +79,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gst-pipeline", choices=["decodebin", "fixed", "both"], default="decodebin")
     parser.add_argument("--no-ffmpeg-fallback", action="store_true")
     parser.add_argument("--fusion-truth-csv", type=Path, default=None)
+    parser.add_argument(
+        "--metadata-jsonl",
+        type=Path,
+        default=None,
+        help="Write live Phase 3 metadata envelopes to JSONL.",
+    )
+    parser.add_argument(
+        "--metadata-http-url",
+        default=None,
+        help="POST live Phase 3 metadata envelopes to this HTTP endpoint.",
+    )
+    parser.add_argument(
+        "--metadata-every-n-frames",
+        type=int,
+        default=1,
+        help="Publish one metadata envelope every N processed campaign frames.",
+    )
     return parser.parse_args()
 
 
@@ -104,6 +122,11 @@ def main() -> None:
             "models": [spec.manifest_dict() for spec in specs],
             "capture_backend": args.capture_backend,
             "gst_codec": args.gst_codec,
+            "gst_protocol": args.gst_protocol,
+            "gst_latency_ms": args.gst_latency_ms,
+            "gst_decoder": args.gst_decoder,
+            "gst_pipeline": args.gst_pipeline,
+            "ffmpeg_fallback": not args.no_ffmpeg_fallback,
             "record_video": not args.no_record_video,
             "record_fps": args.record_fps,
             "display_mode": args.display_mode,
@@ -112,6 +135,11 @@ def main() -> None:
                 "person_zone_min_camera_votes": args.person_zone_min_votes,
                 "object_min_camera_votes": args.object_min_camera_votes,
                 "object_emit_weak_alerts": not args.no_weak_object_alerts,
+            },
+            "metadata": {
+                "jsonl": str(args.metadata_jsonl) if args.metadata_jsonl else "",
+                "http_url": args.metadata_http_url or "",
+                "every_n_frames": args.metadata_every_n_frames,
             },
         },
     )
@@ -159,6 +187,18 @@ def main() -> None:
         run_dir = phase3_root / spec.run_label
         log_path = campaign_dir / "logs" / f"phase3_live_{spec.run_label}.txt"
         print(f"\n[INFO] Live Phase 3 {spec.run_label}")
+        metadata_jsonl = args.metadata_jsonl
+        if metadata_jsonl and len(specs) > 1:
+            metadata_jsonl = metadata_jsonl.with_name(
+                f"{metadata_jsonl.stem}_{spec.run_label}{metadata_jsonl.suffix or '.jsonl'}"
+            )
+        metadata_publisher = None
+        if metadata_jsonl or args.metadata_http_url:
+            metadata_publisher = MetadataPublisher(
+                jsonl_path=metadata_jsonl,
+                http_url=args.metadata_http_url,
+                every_n_frames=args.metadata_every_n_frames,
+            )
         campaign = Phase3Campaign(
             config_path=args.config,
             out_dir=run_dir,
@@ -174,6 +214,7 @@ def main() -> None:
                 "object_min_camera_votes": args.object_min_camera_votes,
                 "object_emit_weak_alerts": not args.no_weak_object_alerts,
             },
+            metadata_publisher=metadata_publisher,
         )
         log_file, redirect_ctx = stdout_to_log(log_path)
         try:

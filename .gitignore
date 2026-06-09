@@ -19,10 +19,17 @@ secrets.*
 *.pem
 
 # Datasets and recordings are intentionally kept outside Git.
+dataset
 dataset/
+dataset_objets_HD
 dataset_objets_HD/
+dataset_objets_V4
+dataset_objets_V4/
+dataset_output_batch
 dataset_output_batch/
+recordings
 recordings/
+videos
 videos/
 *.mp4
 *.avi
@@ -38,7 +45,10 @@ videos/
 *.tflite
 *.mlpackage
 weights/
+Modelstrained
 Modelstrained/
+Phase_2_Baseline_MonoCam/Modelstrained
+Phase_2_Baseline_MonoCam/Modelstrained/
 
 # Training / inference outputs
 runs/
@@ -48,6 +58,7 @@ outputs/
 artifacts/
 
 # Large generated reports from campaigns
+Phase_3_Fusion_MultiCam/reports
 Phase_3_Fusion_MultiCam/reports/
 !reports/
 !reports/**

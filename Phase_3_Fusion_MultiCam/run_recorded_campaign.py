@@ -51,7 +51,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--cameras", default=",".join(ZONE1_CAMERAS))
-    parser.add_argument("--versions", default="V2,V3")
+    parser.add_argument(
+        "--versions",
+        "--dataset-versions",
+        "--dataset-version",
+        dest="versions",
+        default="V2,V3",
+        help="Comma-separated trained dataset/model versions to evaluate, e.g. V4.",
+    )
+    parser.add_argument(
+        "--dataset-variant",
+        choices=["person_objects", "objects_only"],
+        default="person_objects",
+        help="Nested V4 training variant to use. Ignored for flat V2/V3 layouts.",
+    )
     parser.add_argument("--formats", default="pt,fp32_engine")
     parser.add_argument("--models", default=None, help="Comma-separated model names.")
     parser.add_argument("--max-frames", type=int, default=None)
@@ -60,7 +73,33 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--conf", type=float, default=0.5)
     parser.add_argument("--phase2-conf", type=float, default=0.5)
     parser.add_argument("--phase2-trd-conf", type=float, default=0.4)
+    parser.add_argument(
+        "--phase2-imgsz",
+        type=int,
+        default=None,
+        help=(
+            "Inference size for Phase 2 child evaluators. If omitted, V4 TensorRT "
+            "engines use the training/export imgsz from args.yaml; other formats keep "
+            "their evaluator default."
+        ),
+    )
     parser.add_argument("--tad-gt", type=Path, default=DEFAULT_GT_OBJECTS_TAD)
+    parser.add_argument(
+        "--video-map",
+        default=None,
+        help=(
+            "Override recorded videos, format: cam_02=path,cam_03=path. "
+            "Useful for replaying newly recorded live captures."
+        ),
+    )
+    parser.add_argument(
+        "--gt-id-map",
+        default=None,
+        help=(
+            "Override GT camera IDs, format: cam_02=cam_02_live01,cam_03=cam_03_live01. "
+            "The values must match id_camera in GT JSON files."
+        ),
+    )
     parser.add_argument(
         "--skip",
         type=int,
@@ -108,11 +147,79 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def parse_video_map_overrides(raw: str | None) -> dict[str, Path]:
+    overrides: dict[str, Path] = {}
+    if not raw:
+        return overrides
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise SystemExit(
+                "[ERREUR] --video-map attend cam_id=path, ex: cam_02=recordings/foo.mp4"
+            )
+        cam_id, path = item.split("=", 1)
+        cam_id = cam_id.strip()
+        path = path.strip().strip('"')
+        if not cam_id or not path:
+            raise SystemExit(f"[ERREUR] entree --video-map invalide: {item}")
+        video_path = Path(path)
+        if not video_path.is_absolute():
+            video_path = (PROJECT_ROOT / video_path).resolve()
+        overrides[cam_id] = video_path
+    return overrides
+
+
+def parse_gt_id_map_overrides(raw: str | None) -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    if not raw:
+        return overrides
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise SystemExit(
+                "[ERREUR] --gt-id-map attend cam_id=gt_id, ex: cam_02=cam_02_live01"
+            )
+        cam_id, gt_id = item.split("=", 1)
+        cam_id = cam_id.strip()
+        gt_id = gt_id.strip()
+        if not cam_id or not gt_id:
+            raise SystemExit(f"[ERREUR] entree --gt-id-map invalide: {item}")
+        overrides[cam_id] = gt_id
+    return overrides
+
+
 def group_specs_for_phase2(specs):
     grouped = defaultdict(list)
     for spec in specs:
         grouped[(spec.version, spec.format_label, spec.format_arg, spec.suffix_arg)].append(spec)
     return grouped
+
+
+def infer_training_imgsz(spec, default: int = 960) -> int:
+    """Read Ultralytics args.yaml next to a trained model when available."""
+    args_yaml = spec.weights_path.parent.parent / "args.yaml"
+    if not args_yaml.exists():
+        return default
+    for line in args_yaml.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if line.strip().startswith("imgsz:"):
+            _, value = line.split(":", 1)
+            try:
+                return int(float(value.strip()))
+            except ValueError:
+                return default
+    return default
+
+
+def phase2_imgsz_args(args, spec) -> list[str]:
+    if args.phase2_imgsz is not None:
+        return ["--imgsz", str(args.phase2_imgsz)]
+    if spec.format_arg == "engine" and spec.version.upper() == "V4":
+        return ["--imgsz", str(infer_training_imgsz(spec, default=960))]
+    return []
 
 
 def run_phase2(args, specs, cameras, gt_id_map, video_map, campaign_dir: Path) -> list[Path]:
@@ -172,6 +279,7 @@ def run_phase2(args, specs, cameras, gt_id_map, video_map, campaign_dir: Path) -
             ]
             if spec.suffix_arg:
                 tad_cmd.extend(["--suffix", spec.suffix_arg])
+            tad_cmd.extend(phase2_imgsz_args(args, spec))
             tad_rc = run_subprocess(tad_cmd, phase2_log, PROJECT_ROOT, timeout_s=timeout_s)
             if tad_rc != 0:
                 print(f"[WARN] Phase 2 TAD {spec.run_label} {cam_id} termine avec code {tad_rc}", flush=True)
@@ -207,6 +315,7 @@ def run_phase2(args, specs, cameras, gt_id_map, video_map, campaign_dir: Path) -
             ]
             if spec.suffix_arg:
                 trd_cmd.extend(["--suffix", spec.suffix_arg])
+            trd_cmd.extend(phase2_imgsz_args(args, spec))
             trd_rc = run_subprocess(trd_cmd, phase2_log, PROJECT_ROOT, timeout_s=timeout_s)
             if trd_rc != 0:
                 print(f"[WARN] Phase 2 TRD {spec.run_label} {cam_id} termine avec code {trd_rc}", flush=True)
@@ -446,8 +555,23 @@ def main() -> None:
     versions = parse_csv_arg(args.versions, ("V2", "V3"))
     formats = parse_csv_arg(args.formats, ("pt", "fp32_engine"))
     models = parse_csv_arg(args.models, ()) if args.models else None
+    dataset_variants = [args.dataset_variant] if args.dataset_variant else None
     video_map = {cam: ZONE1_VIDEO_MAP[cam] for cam in cameras}
+    video_map.update(
+        {
+            cam: path
+            for cam, path in parse_video_map_overrides(args.video_map).items()
+            if cam in cameras
+        }
+    )
     gt_id_map = {cam: ZONE1_GT_ID_MAP[cam] for cam in cameras}
+    gt_id_map.update(
+        {
+            cam: gt_id
+            for cam, gt_id in parse_gt_id_map_overrides(args.gt_id_map).items()
+            if cam in cameras
+        }
+    )
 
     precheck_campaign_inputs(
         cameras=cameras,
@@ -456,9 +580,21 @@ def main() -> None:
         tad_gt_path=args.tad_gt,
         strict_tad=not args.no_strict_tad,
     )
-    specs = discover_model_specs(versions=versions, formats=formats, model_names=models)
+    specs = discover_model_specs(
+        versions=versions,
+        formats=formats,
+        model_names=models,
+        dataset_variants=dataset_variants,
+    )
     if not specs:
         raise SystemExit("[ERREUR] Aucun modele decouvert.")
+    discovered_formats = {spec.format_label for spec in specs}
+    missing_formats = [fmt for fmt in formats if fmt not in discovered_formats]
+    if missing_formats:
+        print(
+            "[WARN] Aucun poids decouvert pour les formats demandes: "
+            + ", ".join(missing_formats)
+        )
 
     campaign_dir.mkdir(parents=True, exist_ok=True)
     write_manifest(
@@ -470,6 +606,8 @@ def main() -> None:
             "gt_id_map": gt_id_map,
             "tad_gt": str(args.tad_gt),
             "video_map": {cam: str(path) for cam, path in video_map.items()},
+            "dataset_versions": versions,
+            "dataset_variant": args.dataset_variant,
             "models": [spec.manifest_dict() for spec in specs],
             "max_frames": args.max_frames,
         },

@@ -69,6 +69,7 @@ class ModelSpec:
     format_arg: str
     suffix_arg: str
     weights_path: Path
+    dataset_variant: str = ""
 
     def phase2_dict(self) -> dict[str, str]:
         return {"name": self.name, "subdir": self.subdir, "type": self.model_type}
@@ -81,7 +82,11 @@ class ModelSpec:
 
     @property
     def run_label(self) -> str:
-        return f"{self.version}_{self.name}_{self.format_label}"
+        parts = [self.version]
+        if self.dataset_variant:
+            parts.append(self.dataset_variant)
+        parts.extend([self.name, self.format_label])
+        return "_".join(parts)
 
 
 def parse_csv_arg(raw: str | None, default: Iterable[str]) -> list[str]:
@@ -99,13 +104,65 @@ def infer_model_type(name: str) -> str:
     return "rtdetr" if name.lower().startswith("rtdetr") else "yolo"
 
 
+def find_fp32_engine(weights_dir: Path, version: str) -> tuple[Path, str] | None:
+    """Return the FP32 TensorRT engine path plus Phase 2 suffix, if present."""
+    version_key = version.upper()
+    if version_key == "V3":
+        candidates = [
+            ("best_fp32_best.engine", "fp32_best"),
+            ("best.engine", ""),
+        ]
+    else:
+        candidates = [
+            ("best.engine", ""),
+            ("best_fp32_best.engine", "fp32_best"),
+        ]
+
+    for filename, suffix in candidates:
+        engine_path = weights_dir / filename
+        if engine_path.exists():
+            return engine_path, suffix
+    return None
+
+
+def iter_model_dirs(
+    version_dir: Path,
+    dataset_variants: Iterable[str] | None = None,
+) -> Iterable[tuple[Path, str, str]]:
+    """Yield model directories for both flat V2/V3 and nested V4 layouts."""
+    direct_dirs = sorted(
+        p for p in version_dir.iterdir()
+        if p.is_dir() and (p / "weights").is_dir()
+    )
+    for model_dir in direct_dirs:
+        yield model_dir, model_dir.name, ""
+
+    if direct_dirs:
+        return
+
+    requested_variants = list(dataset_variants or [])
+    if not requested_variants:
+        for preferred in ("person_objects", "objects_only"):
+            if (version_dir / preferred).is_dir():
+                requested_variants = [preferred]
+                break
+
+    for variant in requested_variants:
+        variant_dir = version_dir / variant
+        if not variant_dir.is_dir():
+            continue
+        for model_dir in sorted(p for p in variant_dir.iterdir() if p.is_dir()):
+            yield model_dir, f"{variant}/{model_dir.name}", variant
+
+
 def discover_model_specs(
     versions: Iterable[str] = ("V2", "V3"),
     formats: Iterable[str] = ("pt", "fp32_engine"),
     model_names: Iterable[str] | None = None,
     modelstrained_dir: Path = MODELSTRAINED_DIR,
+    dataset_variants: Iterable[str] | None = None,
 ) -> list[ModelSpec]:
-    """Discover V2/V3 trained weights for campaign execution."""
+    """Discover trained weights for campaign execution."""
     selected = set(model_names or [])
     wanted_formats = set(formats)
     specs: list[ModelSpec] = []
@@ -114,7 +171,7 @@ def discover_model_specs(
         version_dir = modelstrained_dir / version
         if not version_dir.exists():
             continue
-        for model_dir in sorted(p for p in version_dir.iterdir() if p.is_dir()):
+        for model_dir, subdir, dataset_variant in iter_model_dirs(version_dir, dataset_variants):
             name = model_dir.name
             if selected and name not in selected:
                 continue
@@ -126,32 +183,30 @@ def discover_model_specs(
                         ModelSpec(
                             version=version,
                             name=name,
-                            subdir=name,
+                            subdir=subdir,
                             model_type=infer_model_type(name),
                             format_label="pt",
                             format_arg="pt",
                             suffix_arg="",
                             weights_path=pt_path,
+                            dataset_variant=dataset_variant,
                         )
                     )
             if "fp32_engine" in wanted_formats:
-                if version == "V3":
-                    engine_path = weights_dir / "best_fp32_best.engine"
-                    suffix = "fp32_best"
-                else:
-                    engine_path = weights_dir / "best.engine"
-                    suffix = ""
-                if engine_path.exists():
+                engine_spec = find_fp32_engine(weights_dir, version)
+                if engine_spec:
+                    engine_path, suffix = engine_spec
                     specs.append(
                         ModelSpec(
                             version=version,
                             name=name,
-                            subdir=name,
+                            subdir=subdir,
                             model_type=infer_model_type(name),
                             format_label="fp32_engine",
                             format_arg="engine",
                             suffix_arg=suffix,
                             weights_path=engine_path,
+                            dataset_variant=dataset_variant,
                         )
                     )
 
@@ -338,6 +393,7 @@ class Phase3Campaign:
         fusion_time_window_ms: float,
         confidence: float | None = None,
         alerting_overrides: dict[str, Any] | None = None,
+        metadata_publisher: Any | None = None,
     ) -> None:
         from fusion import MultiCameraFusion
         from geometry_fix import load_aspect_fix
@@ -360,6 +416,7 @@ class Phase3Campaign:
         self.device = device
         self.fusion_distance_m = fusion_distance_m
         self.fusion_time_window_ms = fusion_time_window_ms
+        self.metadata_publisher = metadata_publisher
         self.ar_fix = load_aspect_fix(self.config)
         self.violation_detector = ViolationDetector(self.config)
         self.fusion = MultiCameraFusion(
@@ -568,6 +625,7 @@ class Phase3Campaign:
             source = self.config.get("cameras", {}).get(cam_id, {}).get("rtsp_url")
             result = open_capture_with_info(str(source), live=True, options=capture_options)
             if result.cap.isOpened():
+                result.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 caps[cam_id] = result.cap
                 capture_backends[cam_id] = result.backend
                 append_log(log_path, f"[INFO] {cam_id} opened via {result.backend}: {result.source}")
@@ -593,6 +651,23 @@ class Phase3Campaign:
                     ret, frame = cap.read()
                     if ret:
                         frames_raw[cam_id] = frame
+                        continue
+
+                    append_log(log_path, f"[WARN] {cam_id} frame read failed, reconnecting...")
+                    cap.release()
+                    source = self.config.get("cameras", {}).get(cam_id, {}).get("rtsp_url")
+                    result = open_capture_with_info(str(source), live=True, options=capture_options)
+                    if result.cap.isOpened():
+                        result.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                        caps[cam_id] = result.cap
+                        capture_backends[cam_id] = result.backend
+                        append_log(
+                            log_path,
+                            f"[INFO] {cam_id} reconnected via {result.backend}: {result.source}",
+                        )
+                    else:
+                        caps[cam_id] = result.cap
+                        append_log(log_path, f"[WARN] {cam_id} reconnect failed: {result.error}")
                 if frames_raw:
                     frame_wall_time = time.time()
                     if record_dir:
@@ -636,6 +711,8 @@ class Phase3Campaign:
                 if display and frames_raw and self._display(frames_raw, display_mode=display_mode):
                     break
         finally:
+            if self.metadata_publisher:
+                self.metadata_publisher.close()
             for writer in writers.values():
                 writer.release()
             for cap in caps.values():
@@ -670,6 +747,27 @@ class Phase3Campaign:
         alerts = self.violation_detector.check(fused)
         self._record_detections(self.frame_count, fused)
         self._record_alerts(self.frame_count, alerts, log_path)
+        self._publish_metadata(self.frame_count, fused, alerts)
+
+    def _publish_metadata(self, frame_idx: int, detections: list[Any], alerts: list[Any]) -> None:
+        if not self.metadata_publisher:
+            return
+        from metadata_publisher import alert_to_metadata, detection_to_metadata
+
+        detection_payload = [
+            detection_to_metadata(det, zones=self.violation_detector.zones_containing(det))
+            for det in detections
+        ]
+        alert_payload = [alert_to_metadata(alert) for alert in alerts]
+        self.metadata_publisher.publish(
+            frame_idx=frame_idx,
+            run_label=self.model_spec.run_label,
+            model_version=self.model_spec.version,
+            model_name=self.model_spec.name,
+            format_label=self.model_spec.format_label,
+            detections=detection_payload,
+            alerts=alert_payload,
+        )
 
     def _display(self, frames_raw: dict[str, Any], display_mode: str = "annotated") -> bool:
         from geometry_fix import fix_frame

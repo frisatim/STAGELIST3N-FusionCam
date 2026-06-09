@@ -1,0 +1,7 @@
+run_dir,mode,capture_backend,gst_protocol,gst_latency_ms,gst_pipeline,ffmpeg_fallback,record_video,record_fps,frames,duration_s,effective_fps,latency_mean_ms,latency_p95_ms,latency_max_ms,fusion_links,fusion_active,alerts,dropped_cameras,camera_count
+Phase_3_Fusion_MultiCam/reports/campaign_zone1_live_20260512_141921,live,gstreamer,,,,,False,25.0,5381,0.0,0.0,13.033,16.288,1714.363,4552,1,93,,0
+Phase_3_Fusion_MultiCam/reports/campaign_zone1_live_20260512_151623,live,gstreamer,,,,,False,25.0,5598,0.0,0.0,12.429,15.832,857.206,1997,1,54,,0
+Phase_3_Fusion_MultiCam/reports/campaign_zone1_live_20260512_152621,live,gstreamer,,,,,False,25.0,5153,0.0,0.0,13.506,16.654,766.747,3057,1,15,,0
+Phase_3_Fusion_MultiCam/reports/campaign_zone1_live_20260512_153908,live,gstreamer,,,,,False,25.0,3284,0.0,0.0,15.89,18.878,773.145,1719,1,10,,0
+Phase_3_Fusion_MultiCam/reports/campaign_zone1_live_20260526_103237,live,opencv,,,,,True,25.0,552,65.998,8.364,24.72,27.176,2023.721,0,0,6,cam_07,4
+Phase_3_Fusion_MultiCam/reports/campaign_zone1_live_20260527_091813,live,opencv,,,,,True,25.0,435,42.246,10.297,18.851,20.54,1600.353,12,1,8,cam_07,4
