@@ -394,6 +394,7 @@ class Phase3Campaign:
         confidence: float | None = None,
         alerting_overrides: dict[str, Any] | None = None,
         metadata_publisher: Any | None = None,
+        latency_trace_path: Path | None = None,
     ) -> None:
         from fusion import MultiCameraFusion
         from geometry_fix import load_aspect_fix
@@ -417,6 +418,7 @@ class Phase3Campaign:
         self.fusion_distance_m = fusion_distance_m
         self.fusion_time_window_ms = fusion_time_window_ms
         self.metadata_publisher = metadata_publisher
+        self.latency_trace_path = latency_trace_path
         self.ar_fix = load_aspect_fix(self.config)
         self.violation_detector = ViolationDetector(self.config)
         self.fusion = MultiCameraFusion(
@@ -445,6 +447,7 @@ class Phase3Campaign:
         self.last_detections_by_cam: dict[str, list[Any]] = {}
         self.track_trails: dict[tuple[str, int], list[tuple[int, int]]] = {}
         self.latencies: list[float] = []
+        self.latency_trace_rows: list[dict[str, Any]] = []
         self.frame_count = 0
 
     def _record_detections(self, frame_idx: int, detections: list[Any]) -> None:
@@ -646,9 +649,26 @@ class Phase3Campaign:
             append_log(log_path, f"[INFO] Enregistrement video live actif: {record_dir}")
         try:
             while time.time() - started < duration_s:
+                loop_start_perf = time.perf_counter()
+                loop_start_epoch = time.time()
                 frames_raw = {}
+                latency_trace_by_cam: dict[str, dict[str, Any]] = {}
                 for cam_id, cap in caps.items():
+                    read_start_perf = time.perf_counter()
+                    read_start_epoch = time.time()
                     ret, frame = cap.read()
+                    read_end_perf = time.perf_counter()
+                    read_end_epoch = time.time()
+                    if self.latency_trace_path:
+                        latency_trace_by_cam[cam_id] = {
+                            "loop_start_epoch": loop_start_epoch,
+                            "capture_read_start_epoch": read_start_epoch,
+                            "capture_read_end_epoch": read_end_epoch,
+                            "capture_read_ms": (read_end_perf - read_start_perf) * 1000.0,
+                            "capture_success": bool(ret),
+                            "record_write_ms": 0.0,
+                            "capture_backend": capture_backends.get(cam_id, ""),
+                        }
                     if ret:
                         frames_raw[cam_id] = frame
                         continue
@@ -670,6 +690,7 @@ class Phase3Campaign:
                         append_log(log_path, f"[WARN] {cam_id} reconnect failed: {result.error}")
                 if frames_raw:
                     frame_wall_time = time.time()
+                    batch_ready_epoch = frame_wall_time
                     if record_dir:
                         for cam_id, frame in frames_raw.items():
                             if cam_id not in writers:
@@ -689,7 +710,13 @@ class Phase3Campaign:
                                     append_log(log_path, f"[WARN] {cam_id} recording open failed: {video_path}")
                                     writer.release()
                             if cam_id in writers:
+                                record_start_perf = time.perf_counter()
                                 writers[cam_id].write(frame)
+                                record_end_perf = time.perf_counter()
+                                if cam_id in latency_trace_by_cam:
+                                    latency_trace_by_cam[cam_id]["record_write_ms"] = (
+                                        record_end_perf - record_start_perf
+                                    ) * 1000.0
                                 recorded_counts[cam_id] += 1
                                 self.sync_rows.append(
                                     {
@@ -706,10 +733,25 @@ class Phase3Campaign:
                                         "capture_backend": capture_backends.get(cam_id, ""),
                                     }
                                 )
-                    self._process_frames(frames_raw, fps_map, log_path, live=True)
+                    self._process_frames(
+                        frames_raw,
+                        fps_map,
+                        log_path,
+                        live=True,
+                        latency_trace_by_cam=latency_trace_by_cam,
+                        batch_ready_epoch=batch_ready_epoch,
+                    )
+                    display_ms = 0.0
+                    stop_display = False
+                    if display:
+                        display_start_perf = time.perf_counter()
+                        stop_display = self._display(frames_raw, display_mode=display_mode)
+                        display_ms = (time.perf_counter() - display_start_perf) * 1000.0
+                    total_loop_ms = (time.perf_counter() - loop_start_perf) * 1000.0
+                    self._finalize_latency_trace_frame(self.frame_count, display_ms, total_loop_ms)
                     self.frame_count += 1
-                if display and frames_raw and self._display(frames_raw, display_mode=display_mode):
-                    break
+                    if stop_display:
+                        break
         finally:
             if self.metadata_publisher:
                 self.metadata_publisher.close()
@@ -727,14 +769,32 @@ class Phase3Campaign:
         fps_map: dict[str, float],
         log_path: Path,
         live: bool,
+        latency_trace_by_cam: dict[str, dict[str, Any]] | None = None,
+        batch_ready_epoch: float | None = None,
     ) -> None:
         detections_by_cam: dict[str, list[Any]] = {}
+        tracker_timings: dict[str, dict[str, Any]] = {}
         for cam_id, frame in frames_raw.items():
             timestamp = time.time() if live else self.frame_count / fps_map.get(cam_id, 25.0)
             t0 = time.perf_counter()
+            inference_start_epoch = time.time()
             detections_by_cam[cam_id] = self.trackers[cam_id].process_frame(frame, timestamp)
-            self.latencies.append(time.perf_counter() - t0)
+            inference_end_perf = time.perf_counter()
+            inference_end_epoch = time.time()
+            latency_s = inference_end_perf - t0
+            self.latencies.append(latency_s)
+            tracker_timings[cam_id] = {
+                "frame_timestamp_epoch": timestamp if live else "",
+                "inference_start_epoch": inference_start_epoch if live else "",
+                "inference_end_epoch": inference_end_epoch if live else "",
+                "inference_tracking_ms": latency_s * 1000.0,
+                "detections_camera": len(detections_by_cam[cam_id]),
+            }
+        fusion_start_perf = time.perf_counter()
+        fusion_start_epoch = time.time()
         fused = self.fusion.associate(detections_by_cam)
+        fusion_end_perf = time.perf_counter()
+        fusion_end_epoch = time.time()
         self.last_detections_by_cam = {}
         for det in fused:
             self.last_detections_by_cam.setdefault(det.cam_id, []).append(det)
@@ -744,10 +804,37 @@ class Phase3Campaign:
                 trail.append((int(det.foot_point_px[0]), int(det.foot_point_px[1])))
                 if len(trail) > 60:
                     del trail[:-60]
+        alerts_start_perf = time.perf_counter()
+        alerts_start_epoch = time.time()
         alerts = self.violation_detector.check(fused)
+        alerts_end_perf = time.perf_counter()
+        alerts_end_epoch = time.time()
         self._record_detections(self.frame_count, fused)
         self._record_alerts(self.frame_count, alerts, log_path)
+        metadata_start_perf = time.perf_counter()
+        metadata_start_epoch = time.time()
         self._publish_metadata(self.frame_count, fused, alerts)
+        metadata_end_perf = time.perf_counter()
+        metadata_end_epoch = time.time()
+        if self.latency_trace_path:
+            self._record_latency_trace(
+                frame_idx=self.frame_count,
+                frames_raw=frames_raw,
+                trace_by_cam=latency_trace_by_cam or {},
+                tracker_timings=tracker_timings,
+                batch_ready_epoch=batch_ready_epoch,
+                fusion_start_epoch=fusion_start_epoch,
+                fusion_end_epoch=fusion_end_epoch,
+                fusion_ms=(fusion_end_perf - fusion_start_perf) * 1000.0,
+                fused_detections=len(fused),
+                alerts_start_epoch=alerts_start_epoch,
+                alerts_end_epoch=alerts_end_epoch,
+                alerts_ms=(alerts_end_perf - alerts_start_perf) * 1000.0,
+                alerts_count=len(alerts),
+                metadata_start_epoch=metadata_start_epoch,
+                metadata_end_epoch=metadata_end_epoch,
+                metadata_ms=(metadata_end_perf - metadata_start_perf) * 1000.0,
+            )
 
     def _publish_metadata(self, frame_idx: int, detections: list[Any], alerts: list[Any]) -> None:
         if not self.metadata_publisher:
@@ -768,6 +855,97 @@ class Phase3Campaign:
             detections=detection_payload,
             alerts=alert_payload,
         )
+
+    def _record_latency_trace(
+        self,
+        frame_idx: int,
+        frames_raw: dict[str, Any],
+        trace_by_cam: dict[str, dict[str, Any]],
+        tracker_timings: dict[str, dict[str, Any]],
+        batch_ready_epoch: float | None,
+        fusion_start_epoch: float,
+        fusion_end_epoch: float,
+        fusion_ms: float,
+        fused_detections: int,
+        alerts_start_epoch: float,
+        alerts_end_epoch: float,
+        alerts_ms: float,
+        alerts_count: int,
+        metadata_start_epoch: float,
+        metadata_end_epoch: float,
+        metadata_ms: float,
+    ) -> None:
+        def ms(value: float | int | None) -> float:
+            return round(float(value or 0.0), 3)
+
+        def ts(value: float | int | str | None) -> float | str:
+            if value in ("", None):
+                return ""
+            return round(float(value), 6)
+
+        for cam_id, frame in frames_raw.items():
+            read = trace_by_cam.get(cam_id, {})
+            infer = tracker_timings.get(cam_id, {})
+            h, w = frame.shape[:2]
+            read_end_epoch = read.get("capture_read_end_epoch")
+            metadata_created_epoch = metadata_end_epoch
+            self.latency_trace_rows.append(
+                {
+                    "model_version": self.model_spec.version,
+                    "model": self.model_spec.name,
+                    "format": self.model_spec.format_label,
+                    "campaign_frame": frame_idx,
+                    "cam_id": cam_id,
+                    "capture_backend": read.get("capture_backend", ""),
+                    "frame_width": w,
+                    "frame_height": h,
+                    "capture_success": read.get("capture_success", True),
+                    "scene_time_epoch_manual": "",
+                    "loop_start_epoch": ts(read.get("loop_start_epoch")),
+                    "capture_read_start_epoch": ts(read.get("capture_read_start_epoch")),
+                    "capture_read_end_epoch": ts(read_end_epoch),
+                    "capture_read_ms": ms(read.get("capture_read_ms")),
+                    "batch_ready_epoch": ts(batch_ready_epoch),
+                    "frame_timestamp_epoch": ts(infer.get("frame_timestamp_epoch")),
+                    "inference_start_epoch": ts(infer.get("inference_start_epoch")),
+                    "inference_end_epoch": ts(infer.get("inference_end_epoch")),
+                    "inference_tracking_ms": ms(infer.get("inference_tracking_ms")),
+                    "detections_camera": infer.get("detections_camera", 0),
+                    "fusion_start_epoch": ts(fusion_start_epoch),
+                    "fusion_end_epoch": ts(fusion_end_epoch),
+                    "fusion_ms": ms(fusion_ms),
+                    "fused_detections": fused_detections,
+                    "alerts_start_epoch": ts(alerts_start_epoch),
+                    "alerts_end_epoch": ts(alerts_end_epoch),
+                    "alerts_ms": ms(alerts_ms),
+                    "alerts_count": alerts_count,
+                    "metadata_start_epoch": ts(metadata_start_epoch),
+                    "metadata_end_epoch": ts(metadata_end_epoch),
+                    "metadata_ms": ms(metadata_ms),
+                    "record_write_ms": ms(read.get("record_write_ms")),
+                    "display_ms": 0.0,
+                    "internal_after_read_ms": ms(
+                        (metadata_created_epoch - float(read_end_epoch)) * 1000.0
+                        if read_end_epoch
+                        else 0.0
+                    ),
+                    "total_loop_ms": 0.0,
+                }
+            )
+
+    def _finalize_latency_trace_frame(
+        self,
+        frame_idx: int,
+        display_ms: float,
+        total_loop_ms: float,
+    ) -> None:
+        if not self.latency_trace_rows:
+            return
+        for row in reversed(self.latency_trace_rows):
+            if row.get("campaign_frame") != frame_idx:
+                break
+            row["display_ms"] = round(display_ms, 3)
+            row["total_loop_ms"] = round(total_loop_ms, 3)
 
     def _display(self, frames_raw: dict[str, Any], display_mode: str = "annotated") -> bool:
         from geometry_fix import fix_frame
@@ -883,6 +1061,9 @@ class Phase3Campaign:
         write_csv(out_dir / "alerts.csv", self.alert_rows, ALERT_FIELDS)
         write_csv(out_dir / "fusion_links.csv", self.fusion_rows, FUSION_FIELDS)
         write_csv(out_dir / "sync_events.csv", self.sync_rows, SYNC_FIELDS)
+        if self.latency_trace_rows:
+            trace_path = self.latency_trace_path or out_dir / "latency_trace.csv"
+            write_csv(trace_path, self.latency_trace_rows, LATENCY_TRACE_FIELDS)
         track_rows = []
         for state in self.track_state.values():
             gids = state["global_ids"]
@@ -925,6 +1106,18 @@ SYNC_FIELDS = [
     "model_version", "model", "format", "campaign_frame", "cam_id",
     "video_frame", "timestamp_epoch", "timestamp_iso", "elapsed_s",
     "recorded_video", "capture_backend",
+]
+LATENCY_TRACE_FIELDS = [
+    "model_version", "model", "format", "campaign_frame", "cam_id",
+    "capture_backend", "frame_width", "frame_height", "capture_success",
+    "scene_time_epoch_manual", "loop_start_epoch", "capture_read_start_epoch",
+    "capture_read_end_epoch", "capture_read_ms", "batch_ready_epoch",
+    "frame_timestamp_epoch", "inference_start_epoch", "inference_end_epoch",
+    "inference_tracking_ms", "detections_camera", "fusion_start_epoch",
+    "fusion_end_epoch", "fusion_ms", "fused_detections", "alerts_start_epoch",
+    "alerts_end_epoch", "alerts_ms", "alerts_count", "metadata_start_epoch",
+    "metadata_end_epoch", "metadata_ms", "record_write_ms", "display_ms",
+    "internal_after_read_ms", "total_loop_ms",
 ]
 
 

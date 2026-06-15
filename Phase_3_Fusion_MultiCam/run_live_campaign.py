@@ -96,6 +96,15 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="Publish one metadata envelope every N processed campaign frames.",
     )
+    parser.add_argument(
+        "--latency-trace-csv",
+        type=Path,
+        default=None,
+        help=(
+            "Write per-frame latency trace CSV with capture read, inference/tracking, "
+            "fusion, alert, metadata, record and display timings."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -141,6 +150,7 @@ def main() -> None:
                 "http_url": args.metadata_http_url or "",
                 "every_n_frames": args.metadata_every_n_frames,
             },
+            "latency_trace_csv": str(args.latency_trace_csv) if args.latency_trace_csv else "",
         },
     )
 
@@ -199,6 +209,11 @@ def main() -> None:
                 http_url=args.metadata_http_url,
                 every_n_frames=args.metadata_every_n_frames,
             )
+        latency_trace_csv = args.latency_trace_csv
+        if latency_trace_csv and len(specs) > 1:
+            latency_trace_csv = latency_trace_csv.with_name(
+                f"{latency_trace_csv.stem}_{spec.run_label}{latency_trace_csv.suffix or '.csv'}"
+            )
         campaign = Phase3Campaign(
             config_path=args.config,
             out_dir=run_dir,
@@ -215,6 +230,7 @@ def main() -> None:
                 "object_emit_weak_alerts": not args.no_weak_object_alerts,
             },
             metadata_publisher=metadata_publisher,
+            latency_trace_path=latency_trace_csv,
         )
         log_file, redirect_ctx = stdout_to_log(log_path)
         try:
