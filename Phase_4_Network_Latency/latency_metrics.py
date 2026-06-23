@@ -4,6 +4,7 @@ import csv
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
+from collections import Counter
 
 
 @dataclass(frozen=True)
@@ -22,10 +23,18 @@ class RunHealth:
     campaign_frames: int
     duration_s: float
     effective_fps: float
+    detections: int
     latency_mean_ms: float
     latency_p95_ms: float
     latency_max_ms: float
     fusion_links: int
+    frames_with_fusion: int
+    fusion_frame_rate_pct: float
+    fusion_links_per_frame: float
+    fusion_links_per_1000_detections: float
+    fusion_camera_pairs: int
+    top_fusion_pair: str
+    top_fusion_pair_links: int
     alerts: int
     cameras: tuple[CameraSyncStats, ...]
 
@@ -53,6 +62,43 @@ def _int(value: str | None, default: int = 0) -> int:
 def read_csv_rows(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8-sig") as handle:
         return list(csv.DictReader(handle))
+
+
+@dataclass(frozen=True)
+class FusionLinkStats:
+    frames_with_fusion: int
+    camera_pairs: int
+    top_pair: str
+    top_pair_links: int
+
+
+def analyze_fusion_links(fusion_links_csv: Path) -> FusionLinkStats:
+    if not fusion_links_csv.exists():
+        return FusionLinkStats(0, 0, "", 0)
+
+    rows = read_csv_rows(fusion_links_csv)
+    frames = {_int(row.get("frame")) for row in rows}
+    camera_pairs: Counter[tuple[str, str]] = Counter()
+
+    for row in rows:
+        cam_a = row.get("cam_a", "")
+        cam_b = row.get("cam_b", "")
+        if cam_a and cam_b:
+            camera_pairs[tuple(sorted((cam_a, cam_b)))] += 1
+
+    if camera_pairs:
+        top_pair_tuple, top_pair_links = camera_pairs.most_common(1)[0]
+        top_pair = "+".join(top_pair_tuple)
+    else:
+        top_pair = ""
+        top_pair_links = 0
+
+    return FusionLinkStats(
+        frames_with_fusion=len(frames),
+        camera_pairs=len(camera_pairs),
+        top_pair=top_pair,
+        top_pair_links=top_pair_links,
+    )
 
 
 def analyze_sync_events(sync_events_csv: Path, expected_cameras: list[str] | None = None) -> tuple[CameraSyncStats, ...]:
@@ -103,7 +149,10 @@ def summarize_phase3_run(run_dir: Path, expected_cameras: list[str] | None = Non
 
     summary = summary_rows[0]
     sync_stats = analyze_sync_events(phase3_dir / "sync_events.csv", expected_cameras=expected_cameras)
+    fusion_stats = analyze_fusion_links(phase3_dir / "fusion_links.csv")
     campaign_frames = _int(summary.get("frames"))
+    detections = _int(summary.get("detections"))
+    fusion_links = _int(summary.get("fusion_links"))
     duration_s = max((cam.last_elapsed_s for cam in sync_stats), default=0.0) - min(
         (cam.first_elapsed_s for cam in sync_stats if cam.frames > 0),
         default=0.0,
@@ -114,10 +163,18 @@ def summarize_phase3_run(run_dir: Path, expected_cameras: list[str] | None = Non
         campaign_frames=campaign_frames,
         duration_s=duration_s,
         effective_fps=effective_fps,
+        detections=detections,
         latency_mean_ms=_float(summary.get("latency_mean_ms")),
         latency_p95_ms=_float(summary.get("latency_p95_ms")),
         latency_max_ms=_float(summary.get("latency_max_ms")),
-        fusion_links=_int(summary.get("fusion_links")),
+        fusion_links=fusion_links,
+        frames_with_fusion=fusion_stats.frames_with_fusion,
+        fusion_frame_rate_pct=(fusion_stats.frames_with_fusion / campaign_frames * 100.0) if campaign_frames else 0.0,
+        fusion_links_per_frame=(fusion_links / campaign_frames) if campaign_frames else 0.0,
+        fusion_links_per_1000_detections=(fusion_links / detections * 1000.0) if detections else 0.0,
+        fusion_camera_pairs=fusion_stats.camera_pairs,
+        top_fusion_pair=fusion_stats.top_pair,
+        top_fusion_pair_links=fusion_stats.top_pair_links,
         alerts=_int(summary.get("alerts")),
         cameras=sync_stats,
     )

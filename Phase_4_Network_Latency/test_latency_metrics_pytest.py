@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from Phase_4_Network_Latency.latency_metrics import (
+    analyze_fusion_links,
     analyze_sync_events,
     compare_runs,
     summarize_phase3_run,
@@ -46,6 +47,15 @@ V4,yolov8s,fp32_engine,5,20,2,3,4,0,18.0,17.0,25.0,200.0
 """,
     )
     _write(
+        tmp_path / "phase3" / "fusion_links.csv",
+        """
+model_version,model,format,frame,timestamp,global_id,cam_a,track_a,cam_b,track_b,distance_m
+V4,yolov8s,fp32_engine,1,0.1,1,cam_02,10,cam_03,20,0.8
+V4,yolov8s,fp32_engine,1,0.1,2,cam_02,11,cam_03,21,0.9
+V4,yolov8s,fp32_engine,3,0.3,3,cam_02,12,cam_03,22,0.7
+""",
+    )
+    _write(
         tmp_path / "phase3" / "sync_events.csv",
         """
 model_version,model,format,campaign_frame,cam_id,video_frame,timestamp_epoch,timestamp_iso,elapsed_s,recorded_video,capture_backend
@@ -68,7 +78,35 @@ V4,yolov8s,fp32_engine,4,cam_03,4,0,,0.4,,FFMPEG
     assert health.effective_fps == 12.5
     assert health.latency_p95_ms == 25.0
     assert health.has_fusion is True
+    assert health.detections == 20
+    assert health.frames_with_fusion == 2
+    assert health.fusion_frame_rate_pct == 40.0
+    assert health.fusion_links_per_frame == 0.6
+    assert health.fusion_links_per_1000_detections == 150.0
+    assert health.fusion_camera_pairs == 1
+    assert health.top_fusion_pair == "cam_02+cam_03"
+    assert health.top_fusion_pair_links == 3
     assert health.dropped_cameras == ()
+
+
+def test_analyze_fusion_links_counts_frames_not_links(tmp_path: Path):
+    fusion_csv = tmp_path / "fusion_links.csv"
+    _write(
+        fusion_csv,
+        """
+model_version,model,format,frame,timestamp,global_id,cam_a,track_a,cam_b,track_b,distance_m
+V4,yolov8s,fp32_engine,10,1.0,1,cam_02,1,cam_07,2,0.5
+V4,yolov8s,fp32_engine,10,1.0,2,cam_02,3,cam_07,4,0.6
+V4,yolov8s,fp32_engine,11,1.1,3,cam_03,5,cam_05,6,0.7
+""",
+    )
+
+    stats = analyze_fusion_links(fusion_csv)
+
+    assert stats.frames_with_fusion == 2
+    assert stats.camera_pairs == 2
+    assert stats.top_pair == "cam_02+cam_07"
+    assert stats.top_pair_links == 2
 
 
 def test_compare_runs_aggregates_phase4_health_metrics(tmp_path: Path):
