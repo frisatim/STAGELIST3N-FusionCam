@@ -6,11 +6,12 @@ Objectif : finir les tests prioritaires tant que le nouveau PC et le serveur son
 
 1. Mettre les scripts a jour sur nouveau PC et serveur.
 2. Faire un run final long serveur avec le meilleur modele.
-3. Mesurer la latence par etape et la latence end-to-end.
-4. Tester Phase 4 : JSONL, HTTP, WebSocket, MQTT.
-5. Tester un dashboard concret video + metadata.
-6. Verifier la synchronisation video / IA.
-7. Revoir calibration/homographie seulement si les resultats montrent un probleme clair.
+3. Creer et valider une configuration avec les vraies zones.
+4. Mesurer la latence par etape et la latence end-to-end.
+5. Tester Phase 4 : JSONL, HTTP, WebSocket, MQTT.
+6. Tester un dashboard concret video + metadata.
+7. Verifier la synchronisation video / IA.
+8. Revoir calibration/homographie seulement si les resultats montrent un probleme clair.
 
 ## Point critique avant de commencer
 
@@ -38,20 +39,59 @@ python Phase_3_Fusion_MultiCam/run_live_campaign.py --help | grep -E "metadata|l
 ls Phase_4_Network_Latency
 ```
 
-## Jour 1 - Run final serveur et latence interne
+## Jour 1 - Vraies zones, run final serveur et latence interne
 
-### 1. Run final serveur 30 min
+### 1. Creer une config dediee aux vraies zones
 
-But : avoir le meilleur run final Phase 3.
+Ne pas ecraser `config.yaml` tant que les vraies zones ne sont pas validees.
+
+Windows :
+
+```powershell
+Copy-Item Phase_3_Fusion_MultiCam\config.yaml Phase_3_Fusion_MultiCam\config_real_zones.yaml
+```
+
+Linux :
 
 ```bash
-python Phase_3_Fusion_MultiCam/run_live_campaign.py --versions V4 --models yolov8s --formats fp32_engine --cameras cam_02,cam_03,cam_05,cam_07 --duration-min 30 --device cuda:0 --object-min-camera-votes 2 --capture-backend opencv --no-display --no-record-video --metadata-jsonl Phase_3_Fusion_MultiCam/reports/final_server_4cam_metadata.jsonl --latency-trace-csv Phase_3_Fusion_MultiCam/reports/final_server_4cam_latency_trace.csv --out-dir Phase_3_Fusion_MultiCam/reports/final_server_4cam_yolov8s_engine_30min
+cp Phase_3_Fusion_MultiCam/config.yaml Phase_3_Fusion_MultiCam/config_real_zones.yaml
+```
+
+Dans `config_real_zones.yaml`, modifier seulement :
+
+- `zones_interdites` ;
+- `coordonnees_metres` ;
+- `cameras_concernees`.
+
+Les coordonnees doivent etre en metres dans le plan sol, pas en pixels.
+
+### 2. Validation visuelle des vraies zones
+
+But : verifier que les zones affichees correspondent bien au sol reel avant de lancer un run long.
+
+```bash
+python Phase_3_Fusion_MultiCam/run_live_campaign.py --config Phase_3_Fusion_MultiCam/config_real_zones.yaml --versions V4 --models yolov8s --formats fp32_engine --cameras cam_02,cam_03,cam_05,cam_07 --duration-min 3 --device cuda:0 --object-min-camera-votes 2 --capture-backend opencv --display-mode annotated --no-record-video --out-dir Phase_3_Fusion_MultiCam/reports/real_zones_visual_check_4cam
+```
+
+Verifier :
+
+- les polygones rouges tombent bien sur les vraies zones ;
+- les pieds des personnes sont projetes au bon endroit ;
+- une personne dans la vraie zone declenche bien une alerte ;
+- une personne hors zone ne declenche pas d'alerte.
+
+### 3. Run final serveur 30 min avec les vraies zones
+
+But : avoir le meilleur run final Phase 3 dans le scenario reel.
+
+```bash
+python Phase_3_Fusion_MultiCam/run_live_campaign.py --config Phase_3_Fusion_MultiCam/config_real_zones.yaml --versions V4 --models yolov8s --formats fp32_engine --cameras cam_02,cam_03,cam_05,cam_07 --duration-min 30 --device cuda:0 --object-min-camera-votes 2 --capture-backend opencv --no-display --no-record-video --metadata-jsonl Phase_3_Fusion_MultiCam/reports/final_server_real_zones_4cam_metadata.jsonl --latency-trace-csv Phase_3_Fusion_MultiCam/reports/final_server_real_zones_4cam_latency_trace.csv --out-dir Phase_3_Fusion_MultiCam/reports/final_server_real_zones_4cam_yolov8s_engine_30min
 ```
 
 Verifier :
 
 ```bash
-python Phase_4_Network_Latency/validate_metadata_jsonl.py Phase_3_Fusion_MultiCam/reports/final_server_4cam_metadata.jsonl --print-example
+python Phase_4_Network_Latency/validate_metadata_jsonl.py Phase_3_Fusion_MultiCam/reports/final_server_real_zones_4cam_metadata.jsonl --print-example
 ```
 
 Livrables :
@@ -60,8 +100,18 @@ Livrables :
 - `alerts.csv`
 - `fusion_links.csv`
 - `track_stability.csv`
-- `final_server_4cam_metadata.jsonl`
-- `final_server_4cam_latency_trace.csv`
+- `final_server_real_zones_4cam_metadata.jsonl`
+- `final_server_real_zones_4cam_latency_trace.csv`
+
+### 4. Run court avec zones actuelles si comparaison necessaire
+
+Si tu veux pouvoir dire clairement ce qui change entre zones actuelles et vraies zones :
+
+```bash
+python Phase_3_Fusion_MultiCam/run_live_campaign.py --versions V4 --models yolov8s --formats fp32_engine --cameras cam_02,cam_03,cam_05,cam_07 --duration-min 10 --device cuda:0 --object-min-camera-votes 2 --capture-backend opencv --no-display --no-record-video --metadata-jsonl Phase_3_Fusion_MultiCam/reports/final_server_current_zones_4cam_metadata.jsonl --latency-trace-csv Phase_3_Fusion_MultiCam/reports/final_server_current_zones_4cam_latency_trace.csv --out-dir Phase_3_Fusion_MultiCam/reports/final_server_current_zones_4cam_yolov8s_engine_10min
+```
+
+Ce run est utile pour comparaison, mais moins prioritaire que le run avec les vraies zones.
 
 ### 2. Analyse rapide du run final
 
@@ -232,8 +282,10 @@ Verifier la calibration si :
 
 Test rapide :
 
+Utiliser plutot la config des vraies zones pour ce test :
+
 ```bash
-python Phase_3_Fusion_MultiCam/run_live_campaign.py --versions V4 --models yolov8s --formats fp32_engine --cameras cam_02,cam_03,cam_05,cam_07 --duration-min 3 --device cuda:0 --object-min-camera-votes 2 --capture-backend opencv --display-mode annotated --no-record-video --out-dir Phase_3_Fusion_MultiCam/reports/calibration_visual_check_4cam
+python Phase_3_Fusion_MultiCam/run_live_campaign.py --config Phase_3_Fusion_MultiCam/config_real_zones.yaml --versions V4 --models yolov8s --formats fp32_engine --cameras cam_02,cam_03,cam_05,cam_07 --duration-min 3 --device cuda:0 --object-min-camera-votes 2 --capture-backend opencv --display-mode annotated --no-record-video --out-dir Phase_3_Fusion_MultiCam/reports/calibration_real_zones_visual_check_4cam
 ```
 
 Decision :
@@ -245,6 +297,7 @@ Decision :
 ## Ce qui doit etre fini a la fin des 3 jours
 
 - run final serveur 30 min ;
+- config vraies zones validee ;
 - metadata JSONL final valide ;
 - latency trace CSV final ;
 - tableau Phase 4 transports ;

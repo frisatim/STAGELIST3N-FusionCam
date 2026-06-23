@@ -59,7 +59,7 @@ class MetadataPublisher:
         jsonl_path: Path | None = None,
         http_url: str | None = None,
         every_n_frames: int = 1,
-        http_timeout_s: float = 0.05,
+        http_timeout_s: float = 0.5,
         queue_size: int = 200,
     ) -> None:
         self.jsonl_path = Path(jsonl_path) if jsonl_path else None
@@ -129,6 +129,12 @@ class MetadataPublisher:
             except queue.Full:
                 pass
             self._thread.join(timeout=1.0)
+        if self.http_url:
+            print(
+                "[INFO] Metadata publisher: "
+                f"sent={self._sent} dropped={self._dropped} "
+                f"queued={self._queue.qsize()}"
+            )
 
     def _http_worker(self) -> None:
         while True:

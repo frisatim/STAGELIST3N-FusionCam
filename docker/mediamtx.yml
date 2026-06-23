@@ -4,6 +4,10 @@ rtspAddress: :8554
 rtmpDisable: yes
 hlsAddress: :8888
 webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts:
+  - 127.0.0.1
+  - localhost
 
 paths:
   all:

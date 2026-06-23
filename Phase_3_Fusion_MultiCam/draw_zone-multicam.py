@@ -336,6 +336,11 @@ def draw_zone_on_frame(frame, pts_px, color=ZONE_COLOR, alpha=ZONE_FILL_ALPHA, l
 
 def main():
     parser = argparse.ArgumentParser(description="Dessiner une zone avec projection multi-cameras")
+    parser.add_argument(
+        "--config",
+        default=os.path.join(SCRIPT_DIR, "config.yaml"),
+        help="Fichier de configuration a lire/ecrire (defaut: config.yaml)",
+    )
     parser.add_argument("--ref-camera", required=True, help="Camera de reference pour dessiner (ex: cam_03)")
     parser.add_argument("--zone", default="zone_new", help="Nom de la zone (ex: zone_1, zone_2)")
     parser.add_argument("--source", default="2", choices=["1", "2"], help="1=RTSP, 2=Video locale")
@@ -349,7 +354,7 @@ def main():
     parser.add_argument("--save", action="store_true", help="Sauvegarder la zone dans config.yaml")
     args = parser.parse_args()
 
-    config_path = os.path.join(SCRIPT_DIR, "config.yaml")
+    config_path = args.config
     config = load_config(config_path)
 
     ref_cam = args.ref_camera

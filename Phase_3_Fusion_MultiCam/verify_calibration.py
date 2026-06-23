@@ -305,6 +305,31 @@ def resolve_zone(config: dict, cam_id: str, zone_arg: str):
     )
 
 
+def resolve_zones(config: dict, cam_id: str, zone_arg: str):
+    zones = config.get("zones_interdites", {})
+
+    if zone_arg in {"all", "*"}:
+        candidates = []
+        for zone_id, zone_data in zones.items():
+            coords = zone_data.get("coordonnees_metres")
+            cams = zone_data.get("cameras_concernees") or []
+            if coords and (not cams or cam_id in cams):
+                candidates.append((zone_id, zone_data))
+        if candidates:
+            return candidates
+        details = []
+        for zone_id, zone_data in zones.items():
+            cams = zone_data.get("cameras_concernees")
+            coords = zone_data.get("coordonnees_metres")
+            details.append(f"  - {zone_id}: cameras={cams}, coords={'OK' if coords else 'VIDE'}")
+        sys.exit(
+            f"ERREUR: Aucune zone affichable pour {cam_id} avec --zone all.\n"
+            + "\n".join(details)
+        )
+
+    return [resolve_zone(config, cam_id, zone_arg)]
+
+
 def select_homography(config: dict, cam_id: str, effective_res):
     hom = config.get("homographie", {})
     cam_data = hom.get(cam_id, {}) if isinstance(hom.get(cam_id, {}), dict) else {}
@@ -400,8 +425,14 @@ def get_display_src_points(calib_data: dict, use_hd_matrix: bool):
 
 def main():
     parser = argparse.ArgumentParser(description="Vérification visuelle de la calibration")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path(__file__).parent / "config.yaml",
+        help="Fichier de configuration à lire (défaut: config.yaml)",
+    )
     parser.add_argument("--camera", default="cam_01", help="Identifiant caméra (ex: cam_01, cam_03)")
-    parser.add_argument("--zone", default="auto", help="Zone interdite à projeter (ou 'auto')")
+    parser.add_argument("--zone", default="auto", help="Zone interdite à projeter ('auto', 'all' ou un id)")
     parser.add_argument("--source", choices=["auto", "rtsp", "video"], default="auto",
                         help="Source à privilégier: auto, rtsp ou video")
     parser.add_argument("--prefer-date", default="20260420", help="Date préférée des vidéos locales (AAAAMMJJ)")
@@ -409,8 +440,8 @@ def main():
     args = parser.parse_args()
 
     # --- Chargement config ---
-    config_path = Path(__file__).parent / "config.yaml"
-    with open(config_path, "r") as f:
+    config_path = args.config
+    with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # --- Ouverture vidéo ---
@@ -457,11 +488,11 @@ def main():
     if (raw_w, raw_h) != (eff_w, eff_h):
         print(f"Résolution après fix ratio : {eff_w}x{eff_h}")
 
-    # --- Zone en mètres ---
-    zone_id, zone_data = resolve_zone(config, args.camera, args.zone)
-    coords_metres = zone_data["coordonnees_metres"]
-    pts_metres = np.array(coords_metres, dtype=np.float32).reshape(-1, 1, 2)
-    print(f"Zone utilisée : {zone_id} ({zone_data['nom']})")
+    # --- Zones en mètres ---
+    zones_to_draw = resolve_zones(config, args.camera, args.zone)
+    print("Zones utilisées :")
+    for zone_id, zone_data in zones_to_draw:
+        print(f"  - {zone_id} ({zone_data['nom']})")
 
     # --- Matrice d'homographie (auto selon résolution réelle) ---
     h_matrix, matrix_name, use_hd_matrix, calib_data = select_homography(config, args.camera, (eff_w, eff_h))
@@ -473,8 +504,13 @@ def main():
     except np.linalg.LinAlgError:
         sys.exit(f"ERREUR: Matrice {matrix_name} non inversible.")
 
-    pixels_cam = cv2.perspectiveTransform(pts_metres, h_inv).astype(np.int32)
-    print(f"Points projetés en pixels :\n{pixels_cam.reshape(-1, 2)}")
+    projected_zones = []
+    for zone_id, zone_data in zones_to_draw:
+        coords_metres = zone_data["coordonnees_metres"]
+        pts_metres = np.array(coords_metres, dtype=np.float32).reshape(-1, 1, 2)
+        pixels_cam = cv2.perspectiveTransform(pts_metres, h_inv).astype(np.int32)
+        projected_zones.append((zone_id, zone_data, pixels_cam))
+        print(f"Points projetés en pixels ({zone_id}) :\n{pixels_cam.reshape(-1, 2)}")
 
     # --- Diagnostic : reprojection des points de calibration ---
     src_pts_for_diag = get_display_src_points(calib_data, use_hd_matrix)
@@ -532,20 +568,22 @@ def main():
         # Correctif ratio d'aspect (AVANT tout dessin ou projection)
         frame = fix_aspect_ratio(frame, args.camera, config)
 
-        # Dessiner le polygone de la zone interdite (rouge)
-        cv2.polylines(frame, [pixels_cam], isClosed=True, color=(0, 0, 255), thickness=3)
+        # Dessiner les zones interdites.
+        colors = [(0, 0, 255), (0, 140, 255), (255, 0, 255), (255, 120, 0), (0, 200, 200)]
+        for idx, (zone_id, zone_data, pixels_cam) in enumerate(projected_zones):
+            color = colors[idx % len(colors)]
+            cv2.polylines(frame, [pixels_cam], isClosed=True, color=color, thickness=3)
 
-        # Texte près du premier point
-        pt_text = tuple(pixels_cam[0][0])
-        cv2.putText(
-            frame,
-            f"ZONE INTERDITE ({zone_data['nom']})",
-            (pt_text[0] + 10, pt_text[1] - 15),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 0, 255),
-            2,
-        )
+            pt_text = tuple(pixels_cam[0][0])
+            cv2.putText(
+                frame,
+                zone_data["nom"],
+                (pt_text[0] + 10, pt_text[1] - 15),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                color,
+                2,
+            )
 
         # Dessiner les points de calibration originaux (vert) pour référence
         if calib_src_pts is not None:

@@ -45,6 +45,9 @@ services:
       - "127.0.0.1:8554:8554"
       - "127.0.0.1:8888:8888"
       - "127.0.0.1:8889:8889"
+      # WebRTC media path used by MediaMTX. Without this UDP mapping, the
+      # browser page can load but the video session may never receive media.
+      - "127.0.0.1:8189:8189/udp"
     volumes:
       - ./docker/mediamtx.yml:/mediamtx.yml:ro
 
