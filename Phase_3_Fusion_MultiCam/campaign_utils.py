@@ -538,8 +538,14 @@ class Phase3Campaign:
                             "global_id": gid,
                             "cam_a": a.cam_id,
                             "track_a": a.track_id,
+                            "class_a": a.class_name,
                             "cam_b": b.cam_id,
                             "track_b": b.track_id,
+                            "class_b": b.class_name,
+                            "time_delta_ms": round(
+                                abs(float(a.timestamp) - float(b.timestamp)) * 1000.0,
+                                3,
+                            ),
                             "distance_m": round(dist, 6) if dist != "" else "",
                         }
                     )
@@ -1096,7 +1102,8 @@ ALERT_FIELDS = [
 ]
 FUSION_FIELDS = [
     "model_version", "model", "format", "frame", "timestamp", "global_id",
-    "cam_a", "track_a", "cam_b", "track_b", "distance_m",
+    "cam_a", "track_a", "class_a", "cam_b", "track_b", "class_b",
+    "time_delta_ms", "distance_m",
 ]
 TRACK_FIELDS = [
     "model_version", "model", "format", "cam_id", "track_id", "first_frame",

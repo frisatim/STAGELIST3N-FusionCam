@@ -9,12 +9,15 @@ a Union-Find structure with path compression.
 from __future__ import annotations
 
 import math
-from typing import Optional
+import unicodedata
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from detection import Detection
+
+TrackKey = tuple[str, int, str]
+INVALID_COST = 1e6
 
 
 class MultiCameraFusion:
@@ -23,23 +26,26 @@ class MultiCameraFusion:
         config: dict,
         distance_threshold_m: float = 1.0,
         time_window_s: float = 0.1,
+        require_class_match: bool = True,
     ) -> None:
         self._distance_threshold_m = distance_threshold_m
         self._time_window_s = time_window_s
+        self._require_class_match = require_class_match
         self._overlap_pairs: list[tuple[str, str]] = self._load_overlap_pairs(config)
 
-        # Union-Find parent map keyed on (cam_id, track_id)
-        self._parent: dict[tuple[str, int], tuple[str, int]] = {}
+        # Union-Find parent map keyed on (cam_id, track_id, canonical_class)
+        self._parent: dict[TrackKey, TrackKey] = {}
 
         # Persistent global ID registry: survives across associate() calls
-        self._track_to_global: dict[tuple[str, int], int] = {}
+        self._track_to_global: dict[TrackKey, int] = {}
         self._next_global_id: int = 1
 
         print(
             f"[INFO] MultiCameraFusion initialised: "
             f"{len(self._overlap_pairs)} overlap pairs, "
             f"dist_thresh={distance_threshold_m}m, "
-            f"time_window={time_window_s}s"
+            f"time_window={time_window_s}s, "
+            f"class_match={'ON' if require_class_match else 'OFF'}"
         )
 
     # ------------------------------------------------------------------
@@ -65,7 +71,7 @@ class MultiCameraFusion:
         # Seed Union-Find with every node present this frame
         self._parent = {}
         for det in all_dets:
-            key = (det.cam_id, det.track_id)
+            key = self._detection_key(det)
             if key not in self._parent:
                 self._parent[key] = key
 
@@ -91,12 +97,12 @@ class MultiCameraFusion:
             for r, c in zip(row_inds, col_inds):
                 if C[r, c] < self._distance_threshold_m:
                     self._union(
-                        (valid_a[r].cam_id, valid_a[r].track_id),
-                        (valid_b[c].cam_id, valid_b[c].track_id),
+                        self._detection_key(valid_a[r]),
+                        self._detection_key(valid_b[c]),
                     )
 
         # Step 2: gather components and assign / propagate global IDs
-        components: dict[tuple[str, int], list[tuple[str, int]]] = {}
+        components: dict[TrackKey, list[TrackKey]] = {}
         for key in self._parent:
             root = self._find(key)
             components.setdefault(root, []).append(key)
@@ -113,7 +119,7 @@ class MultiCameraFusion:
 
         # Step 3: detections without floor position also get a persistent global ID
         for det in all_dets:
-            key = (det.cam_id, det.track_id)
+            key = self._detection_key(det)
             if key not in self._track_to_global:
                 # Node was not reachable through Union-Find (foot_point_m is None)
                 self._track_to_global[key] = self._allocate_global_id()
@@ -157,15 +163,17 @@ class MultiCameraFusion:
         C = np.empty((n, m), dtype=np.float64)
         for i, da in enumerate(dets_a):
             for j, db in enumerate(dets_b):
-                if abs(da.timestamp - db.timestamp) > self._time_window_s:
-                    C[i, j] = 1e6
+                if self._require_class_match and not self._classes_compatible(da, db):
+                    C[i, j] = INVALID_COST
+                elif abs(da.timestamp - db.timestamp) > self._time_window_s:
+                    C[i, j] = INVALID_COST
                 else:
                     dx = da.foot_point_m[0] - db.foot_point_m[0]  # type: ignore[index]
                     dy = da.foot_point_m[1] - db.foot_point_m[1]  # type: ignore[index]
                     C[i, j] = math.sqrt(dx * dx + dy * dy)
         return C
 
-    def _find(self, x: tuple[str, int]) -> tuple[str, int]:
+    def _find(self, x: TrackKey) -> TrackKey:
         """Find root with path-compression (one-pass halving)."""
         while self._parent[x] != x:
             # Path compression: skip one level
@@ -173,7 +181,7 @@ class MultiCameraFusion:
             x = self._parent[x]
         return x
 
-    def _union(self, a: tuple[str, int], b: tuple[str, int]) -> None:
+    def _union(self, a: TrackKey, b: TrackKey) -> None:
         """Merge the components containing a and b."""
         # Nodes from detections without floor position may not be in parent
         for node in (a, b):
@@ -185,6 +193,21 @@ class MultiCameraFusion:
         if root_a != root_b:
             # Attach root_b under root_a (no rank — small number of cameras)
             self._parent[root_b] = root_a
+
+    def _detection_key(self, det: Detection) -> TrackKey:
+        return (det.cam_id, det.track_id, self._class_key(det))
+
+    def _classes_compatible(self, a: Detection, b: Detection) -> bool:
+        return self._class_key(a) == self._class_key(b)
+
+    def _class_key(self, det: Detection) -> str:
+        raw = det.class_name or str(det.class_id)
+        normalized = unicodedata.normalize("NFKD", raw)
+        ascii_name = normalized.encode("ascii", "ignore").decode("ascii")
+        key = " ".join(ascii_name.lower().strip().replace("_", " ").split())
+        if key in {"person", "persons", "personne", "personnes", "human", "humain"}:
+            return "person"
+        return key or str(det.class_id)
 
     def _allocate_global_id(self) -> int:
         """Return the next available global ID and advance the counter."""
