@@ -277,6 +277,7 @@ INDEX_HTML = """<!doctype html>
       lastLatencyMs: 0,
       metadataBuffer: [],
       lastAppliedMetadataKey: "",
+      layoutCameraKey: "",
     };
     const cameraArea = document.getElementById("cameraArea");
     const cameraStatus = document.getElementById("cameraStatus");
@@ -388,6 +389,7 @@ INDEX_HTML = """<!doctype html>
     function renderLayout() {
       cameraArea.innerHTML = "";
       const cams = Array.from(state.cameras.keys()).sort();
+      state.layoutCameraKey = cams.join(",");
       document.getElementById("cameraCount").textContent = cams.length;
       if (cams.length > 1 && state.focusCam && state.cameras.has(state.focusCam)) {
         const layout = document.createElement("div");
@@ -572,10 +574,12 @@ INDEX_HTML = """<!doctype html>
     function applyMetadata(metadata) {
       state.lastAppliedMetadataKey = metadataKey(metadata);
       const grouped = new Map();
+      let needsLayout = false;
       for (const det of metadata.detections || []) {
         const camId = det.camera_id || "unknown";
         if (!grouped.has(camId)) grouped.set(camId, []);
         grouped.get(camId).push(det);
+        if (!state.cameras.has(camId)) needsLayout = true;
         ensureCamera(camId);
       }
       for (const [camId, detections] of grouped) {
@@ -597,7 +601,13 @@ INDEX_HTML = """<!doctype html>
           received_epoch_ms: metadata.received_epoch_ms,
         });
       }
-      renderLayout();
+      const cameraKey = Array.from(state.cameras.keys()).sort().join(",");
+      if (needsLayout || cameraKey !== state.layoutCameraKey) {
+        renderLayout();
+      } else {
+        for (const camId of state.cameras.keys()) drawOverlay(camId);
+        updateBadges();
+      }
     }
 
     window.addEventListener("resize", () => {

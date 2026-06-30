@@ -616,3 +616,228 @@ Si tu as du temps en plus de la roadmap :
 7. documenter un cas visuel ou Phase 3 corrige une limite de Phase 2.
 
 Ces tests completeraient directement la question scientifique, sans refaire toute la matrice experimentale.
+
+## 11. Mise a jour 2026-06-26 - Audit des resultats transferes PC / serveur
+
+Source analysee :
+
+```text
+XFER_RESULTS_20260626_123949-20260626T120106Z-3-001/XFER_RESULTS_20260626_123949
+```
+
+Etat du code dans l'archive :
+
+```text
+commit : a22a02d254cc54d0edefe741a1df31e27b90cb7b
+```
+
+Ce commit est important car il correspond a la version ou la fusion inter-camera est devenue compatible avec les classes. En pratique, cela evite de creer des liens de fusion entre objets de classes differentes, par exemple :
+
+```text
+personne + bouteille
+personne + marteau
+bouteille + pince
+```
+
+Cette correction change l'interpretation des nouveaux resultats : les runs recents ne doivent pas etre melanges directement avec les anciens runs pour juger la qualite des `fusion_links`, car les anciens fichiers ne contiennent pas toujours `class_a`, `class_b` et `time_delta_ms`.
+
+### 11.1 Resultats Phase 3 recents avec vraies zones
+
+Le run le plus important de l'archive est :
+
+```text
+Phase_3_reports/final_real_zones_4cam_30min
+```
+
+Configuration :
+
+- mode live ;
+- 4 cameras : `cam_02`, `cam_03`, `cam_05`, `cam_07` ;
+- configuration : `config_real_zones.yaml` ;
+- modele : V4 `yolov8s` ;
+- format : TensorRT FP32 engine ;
+- backend capture : OpenCV / FFmpeg fallback ;
+- duree : 30 minutes ;
+- pas d'enregistrement video ;
+- metadata JSONL active ;
+- trace de latence active.
+
+Resultats principaux :
+
+| Run | Cameras | Frames | Detections | Alertes | Liens fusion | Frames avec fusion | Liens / 1000 detections | Liens classe incompatible | Latence IA p95 | Lag metadata p95 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| final real zones 30 min | 4 | 28772 | 35627 | 516 | 7618 | 4905 | 213.8 | 0 | 16.10 ms | 63.12 ms |
+| real zones 10 min | 4 | 9806 | 6498 | 66 | 574 | 475 | 88.3 | 0 | 15.59 ms | 63.29 ms |
+| objects real 10 min | 2 | 15012 | 7649 | 87 | 2364 | 2348 | 309.1 | 0 | 16.82 ms | 33.94 ms |
+| wireshark 4 cams no display | 4 | 3705 | 3978 | 111 | 888 | 465 | 223.2 | 0 | 19.78 ms | 73.65 ms |
+
+Interpretation :
+
+- la fusion est active sur les vraies zones ;
+- le run final 30 minutes produit 7618 liens inter-cameras ;
+- 4905 frames contiennent au moins un lien de fusion ;
+- les nouveaux liens de fusion ne melangent plus les classes (`class_mismatch_links = 0`) ;
+- la latence IA p95 reste faible pour 4 cameras, autour de 16 ms ;
+- le lag metadata p95 est autour de 63 ms sur le run final 4 cameras, ce qui reste compatible avec un dashboard d'alertes, mais ce n'est pas la latence end-to-end video complete.
+
+Ce resultat renforce fortement l'interet de la Phase 3 pour la fusion multi-camera, car il corrige l'une des limites identifiees dans le mini-GT : les associations personne/objet ou objet/objet de classes differentes.
+
+### 11.2 Alertes du run final
+
+Dans le run final 4 cameras / 30 minutes :
+
+| Type d'alerte | Nombre |
+|---|---:|
+| Violation zone/personne | 316 |
+| Objet interdit | 200 |
+| Total | 516 |
+
+Par niveau :
+
+| Niveau | Nombre |
+|---|---:|
+| Confirmed | 323 |
+| Weak | 193 |
+
+Detail important :
+
+| Type | Niveau | Nombre |
+|---|---|---:|
+| Zone/personne | confirmed | 316 |
+| Objet interdit | confirmed | 7 |
+| Objet interdit | weak | 193 |
+
+Interpretation :
+
+- les violations personne/zone sont bien confirmees ;
+- les objets restent beaucoup plus fragiles ;
+- dans le run final strict avec `object_min_camera_votes=2`, seulement 7 alertes objet sont confirmees ;
+- la majorite des alertes objet restent weak, ce qui confirme que les objets sont souvent visibles par une seule camera ou instables dans le tracking ;
+- le run `objects_real_2cam_10min` montre davantage d'alertes objet confirmees, mais il utilise `object_min_camera_votes=1`, donc il sert surtout a verifier la detection live des objets, pas la confirmation multi-camera stricte.
+
+Conclusion :
+
+> Les resultats objets sont meilleurs qu'avant du point de vue association, car les liens de classes incompatibles sont supprimes. En revanche, la confirmation multi-camera des objets reste difficile et ne doit pas etre presentee comme pleinement validee sans GT objet controlee.
+
+### 11.3 Comparaison PC / serveur et scalabilite
+
+Les resultats transferes contiennent aussi des runs plus anciens PC2 et serveur. Ils restent utiles pour evaluer la charge, mais ils ne doivent pas etre utilises seuls pour juger la qualite fine des liens de fusion, car ils ne sont pas tous issus de la meme version class-aware.
+
+| Plateforme / run | Cameras | Frames | Detections | Alertes | Liens fusion | Frames avec fusion | IDs globaux | ID switches | Latence IA p95 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| PC2 direct 1 cam TCP100 | 1 | 3007 | 707 | 49 | 0 | 0 | 16 | 0 | 23.87 ms |
+| PC2 direct 2 cams TCP100 no UI | 2 | 7148 | 11275 | 32 | 1845 | 1646 | 80 | 9 | 22.28 ms |
+| PC2 direct 4 cams TCP100 no UI | 4 | 11185 | 11993 | 102 | 5238 | 3175 | 70 | 20 | 20.93 ms |
+| PC2 direct 8 cams TCP100 no UI | 8 | 2839 | 2610 | 30 | 38 | 38 | 43 | 1 | 20.59 ms |
+| Serveur relaye 2 cams TCP100 | 2 | 7513 | 6025 | 67 | 1727 | 1272 | 47 | 10 | 17.92 ms |
+| Serveur relaye 4 cams TCP100 | 4 | 15004 | 31918 | 103 | 14280 | 4212 | 207 | 59 | 11.36 ms |
+
+Interpretation :
+
+- le serveur reste le meilleur candidat pour la charge IA 4 cameras ;
+- le PC2 tient 4 cameras en no display / no record, mais avec une latence p95 plus elevee ;
+- le run 8 cameras PC2 n'est pas une validation suffisante : peu de frames traitees, peu de fusion, et couverture effective a verifier ;
+- les resultats serveur 4 cameras sont tres bons en latence IA, mais ils proviennent d'un run relaye plus ancien et ne remplacent pas le run final avec les vraies zones et la fusion class-aware ;
+- les deux familles de tests sont donc complementaires : serveur pour la performance, nouveau PC pour le run final avec vraies zones et nouvelle logique de fusion.
+
+Conclusion scalabilite :
+
+> La Phase 3 est credible pour 2 a 4 cameras autour d'une zone critique. Elle n'est pas encore validee proprement pour 8 cameras, et elle ne doit pas etre generalisee a 50-60 cameras dans un seul pipeline centralise.
+
+Pour un grand site, la conclusion reste une architecture hybride :
+
+```text
+groupes de cameras avec recouvrement
+  -> fusion locale par zone critique
+  -> publication de metadonnees / alertes globales
+  -> supervision centrale
+```
+
+### 11.4 Analyse latence interne par etape
+
+Les traces de latence montrent que le cout de fusion et de generation d'alertes est faible par rapport a l'inference et a la boucle globale.
+
+Run final 4 cameras / 30 minutes :
+
+| Etape | Moyenne | P95 |
+|---|---:|---:|
+| Lecture frame | 1.93 ms | 4.55 ms |
+| Inference + tracking | 13.11 ms | 16.10 ms |
+| Fusion | 0.03 ms | 0.06 ms |
+| Alertes | 0.04 ms | 0.03 ms |
+| Metadata | 0.87 ms | 1.30 ms |
+| Apres lecture interne | 58.13 ms | 69.16 ms |
+| Boucle totale | 62.28 ms | 67.27 ms |
+
+Interpretation :
+
+- la fusion n'est pas le goulot d'etranglement ;
+- la publication metadata n'est pas le goulot d'etranglement ;
+- le cout principal reste l'inference/tracking et la boucle multi-camera complete ;
+- la boucle totale autour de 60-67 ms signifie que le pipeline 4 cameras ne traite pas exactement 25 iterations completes par seconde, meme si chaque inference individuelle reste rapide ;
+- la latence IA interne ne doit pas etre confondue avec la latence end-to-end camera -> affichage -> alerte.
+
+### 11.5 Analyse Wireshark
+
+Trois captures Wireshark RTSP/TCP sont presentes :
+
+| Capture | Duree | Paquets | Debit moyen capture | Anomalies TCP detectees |
+|---|---:|---:|---:|---:|
+| 4 cams TCP court | 86.4 s | 8382 | 0.78 Mbit/s | 2 |
+| 4 cams TCP | 465.2 s | 66057 | 1.12 Mbit/s | 17 |
+| 4 cams TCP no display | 771.0 s | 69328 | 0.71 Mbit/s | 14 |
+
+Interpretation :
+
+- les captures confirment l'activite RTSP/TCP entre le PC et les flux cameras ;
+- le nombre d'anomalies TCP detectees reste faible par rapport au nombre total de paquets ;
+- les captures sont utiles pour documenter l'architecture reseau, mais elles ne suffisent pas a mesurer la latence end-to-end utilisateur ;
+- pour la latence complete, il faut encore la methode chrono visible dans l'image ou un horodatage embarque dans la scene.
+
+Conclusion reseau :
+
+> Les captures Wireshark soutiennent l'analyse de robustesse reseau, mais la preuve principale de latence utilisateur doit venir d'un test end-to-end visuel ou d'un horodatage synchronise.
+
+### 11.6 Impact sur l'audit initial
+
+Les nouveaux resultats changent l'audit sur trois points.
+
+Premier point : la qualite des `fusion_links` est plus defendable qu'avant.
+
+Avant, le mini-GT montrait des cas de mauvaise fusion inter-classe. Apres correction, les runs recents affichent :
+
+```text
+class_mismatch_links = 0
+```
+
+Cela ne prouve pas que toutes les associations sont correctes, mais cela supprime une source majeure d'erreur evidente.
+
+Deuxieme point : les vraies zones sont maintenant testees en live sur un run long.
+
+Le run `final_real_zones_4cam_30min` donne une base beaucoup plus solide pour le rapport que les essais courts avec zones temporaires. Il permet de parler d'un scenario plus proche des conditions reelles.
+
+Troisieme point : les objets restent la limite principale.
+
+Le systeme detecte des objets et produit des alertes, mais la confirmation multi-camera stricte reste rare. Il faut donc conserver une conclusion nuancee :
+
+```text
+Phase 3 tres interessante pour personnes / zones.
+Phase 3 utile mais encore fragile pour objets.
+Phase 4 pertinente pour separer video, IA et metadonnees.
+```
+
+### 11.7 Conclusion mise a jour
+
+Les resultats transferes renforcent clairement l'interet de la fusion multi-camera pour le stage, mais ils ne justifient toujours pas une conclusion trop generale.
+
+Conclusion maintenant defendable :
+
+> L'architecture Phase 3 / Phase 4 est pertinente pour surveiller une zone industrielle couverte par un petit groupe de cameras avec recouvrement. Elle permet une localisation au sol, des global_id, une fusion inter-camera classe-compatible, des alertes globales et une publication de metadonnees exploitable par dashboard. Les resultats recents montrent un fonctionnement stable sur 4 cameras avec les vraies zones pendant 30 minutes et une latence IA p95 autour de 16 ms. En revanche, les objets interdits restent plus difficiles a confirmer en multi-camera, la latence end-to-end video/alerte reste a mesurer completement, et l'approche n'est pas encore validee pour 8 cameras ni pour une generalisation directe a 50-60 cameras.
+
+Ce qu'il reste a faire pour verrouiller scientifiquement la conclusion :
+
+1. exploiter le mini-GT de fusion pour calculer precision/erreurs d'association ;
+2. faire un test no-event pour quantifier les fausses alertes operationnelles ;
+3. mesurer la latence end-to-end avec chrono visible ;
+4. comparer explicitement alertes Phase 2 separees vs alertes Phase 3 globales sur une sequence courte ;
+5. ne presenter les objets que comme un resultat exploratoire tant qu'une GT live ou recorded adaptee n'est pas disponible.
