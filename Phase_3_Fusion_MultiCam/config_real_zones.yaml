@@ -75,23 +75,6 @@ geometrie_2d:
   origine_pixel_x: 0
   origine_pixel_y: 0
 zones_interdites:
-  zone_1:
-    nom: zone_1
-    type_alerte: violation_zone
-    cameras_concernees:
-    - cam_02
-    - cam_03
-    - cam_05
-    - cam_07
-    coordonnees_metres:
-    - - 7.612
-      - 3.706
-    - - 6.583
-      - 3.697
-    - - 6.682
-      - 5.061
-    - - 7.45
-      - 5.074
   zone_2:
     nom: zone_2
     type_alerte: violation_zone
@@ -110,6 +93,55 @@ zones_interdites:
       - 13.377
     - - 7.928
       - 13.609
+  salle1_zone_1:
+    nom: salle1_zone_1
+    type_alerte: violation_zone
+    cameras_concernees:
+    - cam_02
+    - cam_03
+    - cam_05
+    - cam_07
+    coordonnees_metres:
+    - - 9.285
+      - 3.259
+    - - 8.589
+      - 2.796
+    - - 8.407
+      - 3.271
+    - - 9.109
+      - 3.708
+  salle1_zone_2:
+    nom: salle1_zone_2
+    type_alerte: violation_zone
+    cameras_concernees:
+    - cam_02
+    - cam_05
+    - cam_07
+    coordonnees_metres:
+    - - 6.811
+      - 2.669
+    - - 5.774
+      - 2.669
+    - - 5.804
+      - 3.19
+    - - 6.797
+      - 3.263
+  salle1_zone_3:
+    nom: salle1_zone_3
+    type_alerte: violation_zone
+    cameras_concernees:
+    - cam_02
+    - cam_05
+    - cam_07
+    coordonnees_metres:
+    - - 3.258
+      - 2.401
+    - - 3.746
+      - 3.022
+    - - 3.486
+      - 3.45
+    - - 3.009
+      - 2.723
 homographie:
   cam_01_matrix:
   - - -0.004873036318209923
