@@ -94,6 +94,7 @@ class MetadataPublisher:
         format_label: str,
         detections: list[dict[str, Any]],
         alerts: list[dict[str, Any]],
+        timing: dict[str, Any] | None = None,
     ) -> None:
         if frame_idx % self.every_n_frames != 0:
             return
@@ -111,6 +112,8 @@ class MetadataPublisher:
             "detections": detections,
             "alerts": alerts,
         }
+        if timing:
+            envelope["timing"] = timing
 
         if self.jsonl_path:
             with self.jsonl_path.open("a", encoding="utf-8") as fh:

@@ -665,7 +665,7 @@ class Phase3Campaign:
                     ret, frame = cap.read()
                     read_end_perf = time.perf_counter()
                     read_end_epoch = time.time()
-                    if self.latency_trace_path:
+                    if self.latency_trace_path or self.metadata_publisher:
                         latency_trace_by_cam[cam_id] = {
                             "loop_start_epoch": loop_start_epoch,
                             "capture_read_start_epoch": read_start_epoch,
@@ -817,9 +817,17 @@ class Phase3Campaign:
         alerts_end_epoch = time.time()
         self._record_detections(self.frame_count, fused)
         self._record_alerts(self.frame_count, alerts, log_path)
+        timing_payload = self._build_metadata_timing(
+            trace_by_cam=latency_trace_by_cam or {},
+            tracker_timings=tracker_timings,
+            batch_ready_epoch=batch_ready_epoch,
+            fusion_ms=(fusion_end_perf - fusion_start_perf) * 1000.0,
+            alerts_ms=(alerts_end_perf - alerts_start_perf) * 1000.0,
+            metadata_start_epoch=time.time(),
+        )
         metadata_start_perf = time.perf_counter()
         metadata_start_epoch = time.time()
-        self._publish_metadata(self.frame_count, fused, alerts)
+        self._publish_metadata(self.frame_count, fused, alerts, timing=timing_payload)
         metadata_end_perf = time.perf_counter()
         metadata_end_epoch = time.time()
         if self.latency_trace_path:
@@ -842,7 +850,78 @@ class Phase3Campaign:
                 metadata_ms=(metadata_end_perf - metadata_start_perf) * 1000.0,
             )
 
-    def _publish_metadata(self, frame_idx: int, detections: list[Any], alerts: list[Any]) -> None:
+    def _build_metadata_timing(
+        self,
+        trace_by_cam: dict[str, dict[str, Any]],
+        tracker_timings: dict[str, dict[str, Any]],
+        batch_ready_epoch: float | None,
+        fusion_ms: float,
+        alerts_ms: float,
+        metadata_start_epoch: float,
+    ) -> dict[str, Any]:
+        def clean_ms(value: float | int | None) -> float:
+            return round(float(value or 0.0), 3)
+
+        def clean_epoch(value: float | int | None) -> float | None:
+            if value in ("", None):
+                return None
+            return round(float(value), 6)
+
+        capture_read_ms = [
+            float(row.get("capture_read_ms") or 0.0)
+            for row in trace_by_cam.values()
+            if row.get("capture_success", True)
+        ]
+        capture_read_end_epochs = [
+            float(row.get("capture_read_end_epoch"))
+            for row in trace_by_cam.values()
+            if row.get("capture_success", True) and row.get("capture_read_end_epoch")
+        ]
+        inference_ms = [
+            float(row.get("inference_tracking_ms") or 0.0)
+            for row in tracker_timings.values()
+        ]
+        inference_start_epochs = [
+            float(row.get("inference_start_epoch"))
+            for row in tracker_timings.values()
+            if row.get("inference_start_epoch")
+        ]
+        inference_end_epochs = [
+            float(row.get("inference_end_epoch"))
+            for row in tracker_timings.values()
+            if row.get("inference_end_epoch")
+        ]
+        first_capture_end = min(capture_read_end_epochs) if capture_read_end_epochs else None
+        last_capture_end = max(capture_read_end_epochs) if capture_read_end_epochs else None
+
+        return {
+            "camera_count": len(trace_by_cam),
+            "capture_read_ms_mean": clean_ms(sum(capture_read_ms) / len(capture_read_ms)) if capture_read_ms else 0.0,
+            "capture_read_ms_max": clean_ms(max(capture_read_ms)) if capture_read_ms else 0.0,
+            "capture_read_end_epoch_min": clean_epoch(first_capture_end),
+            "capture_read_end_epoch_max": clean_epoch(last_capture_end),
+            "batch_ready_epoch": clean_epoch(batch_ready_epoch),
+            "inference_start_epoch_min": clean_epoch(min(inference_start_epochs) if inference_start_epochs else None),
+            "inference_end_epoch_max": clean_epoch(max(inference_end_epochs) if inference_end_epochs else None),
+            "inference_tracking_ms_mean": clean_ms(sum(inference_ms) / len(inference_ms)) if inference_ms else 0.0,
+            "inference_tracking_ms_max": clean_ms(max(inference_ms)) if inference_ms else 0.0,
+            "fusion_ms": clean_ms(fusion_ms),
+            "alerts_ms": clean_ms(alerts_ms),
+            "capture_to_metadata_ms_worst": clean_ms(
+                (metadata_start_epoch - first_capture_end) * 1000.0 if first_capture_end else 0.0
+            ),
+            "capture_to_metadata_ms_latest": clean_ms(
+                (metadata_start_epoch - last_capture_end) * 1000.0 if last_capture_end else 0.0
+            ),
+        }
+
+    def _publish_metadata(
+        self,
+        frame_idx: int,
+        detections: list[Any],
+        alerts: list[Any],
+        timing: dict[str, Any] | None = None,
+    ) -> None:
         if not self.metadata_publisher:
             return
         from metadata_publisher import alert_to_metadata, detection_to_metadata
@@ -860,6 +939,7 @@ class Phase3Campaign:
             format_label=self.model_spec.format_label,
             detections=detection_payload,
             alerts=alert_payload,
+            timing=timing,
         )
 
     def _record_latency_trace(

@@ -238,7 +238,11 @@ INDEX_HTML = """<!doctype html>
         <div class="metric"><span>Cameras</span><strong id="cameraCount">0</strong></div>
         <div class="metric"><span>Detections</span><strong id="detCount">0</strong></div>
         <div class="metric"><span>Alerts</span><strong id="total">0</strong></div>
-        <div class="metric"><span>Metadata latency</span><strong id="latency">0 ms</strong></div>
+        <div class="metric"><span>Video lag</span><strong id="videoLag">0 ms</strong></div>
+        <div class="metric"><span>AI path</span><strong id="aiPath">0 ms</strong></div>
+        <div class="metric"><span>Metadata HTTP</span><strong id="metadataLatency">0 ms</strong></div>
+        <div class="metric"><span>Overlay delay</span><strong id="overlayDelay">0 ms</strong></div>
+        <div class="metric"><span>Est. visible E2E</span><strong id="visibleE2E">0 ms</strong></div>
       </section>
       <section class="camera-area" id="cameraArea"></section>
     </section>
@@ -279,6 +283,7 @@ INDEX_HTML = """<!doctype html>
       alerts: new Map(),
       totalAlerts: 0,
       lastLatencyMs: 0,
+      lastTiming: {},
       metadataBuffer: [],
       lastAppliedMetadataKey: "",
       layoutCameraKey: "",
@@ -333,6 +338,13 @@ INDEX_HTML = """<!doctype html>
       return "off";
     }
 
+    function formatMs(value) {
+      const n = Number(value || 0);
+      if (!Number.isFinite(n) || n <= 0) return "0 ms";
+      if (n >= 1000) return `${(n / 1000).toFixed(2)} s`;
+      return `${n.toFixed(n >= 10 ? 0 : 1)} ms`;
+    }
+
     function updateVideoLatency(cam) {
       if (!cam || !cam.mediaEl) return;
       let latencyMs = 0;
@@ -365,6 +377,32 @@ INDEX_HTML = """<!doctype html>
         }
       }
       return overlayDelayMs;
+    }
+
+    function maxVideoLatencyMs() {
+      const latencies = Array.from(state.cameras.values())
+        .map((cam) => {
+          updateVideoLatency(cam);
+          return Number(cam.videoLatencyMs || 0);
+        })
+        .filter((value) => value > 0);
+      return latencies.length ? Math.max(...latencies) : 0;
+    }
+
+    function aiPathMs() {
+      const timing = state.lastTiming || {};
+      return Number(
+        timing.capture_to_metadata_ms_worst ||
+        timing.capture_to_metadata_ms_latest ||
+        0
+      );
+    }
+
+    function visibleE2EMs() {
+      const video = maxVideoLatencyMs();
+      const aiToDashboard = aiPathMs() + Number(state.lastLatencyMs || 0);
+      const overlay = effectiveOverlayDelayMs();
+      return Math.max(video, aiToDashboard, overlay);
     }
 
     function setupHlsVideo(camId, cam, video, url) {
@@ -600,7 +638,15 @@ INDEX_HTML = """<!doctype html>
         rows.push(`<div class="status-row"><span><i class="dot ${freshness}"></i>${camId}</span><span>${cam.detections.length} bbox ${videoLag}</span><span>${ageS}s</span></div>`);
       }
       cameraStatus.innerHTML = rows.join("") || '<div class="empty">No cameras configured.</div>';
-      document.getElementById("latency").textContent = `${state.lastLatencyMs.toFixed(1)} ms`;
+      updateMetrics();
+    }
+
+    function updateMetrics() {
+      document.getElementById("videoLag").textContent = formatMs(maxVideoLatencyMs());
+      document.getElementById("aiPath").textContent = formatMs(aiPathMs());
+      document.getElementById("metadataLatency").textContent = formatMs(state.lastLatencyMs);
+      document.getElementById("overlayDelay").textContent = formatMs(effectiveOverlayDelayMs());
+      document.getElementById("visibleE2E").textContent = formatMs(visibleE2EMs());
     }
 
     function addAlertRow(event) {
@@ -682,6 +728,7 @@ INDEX_HTML = """<!doctype html>
         cam.deliveryLatencyMs = Number(metadata.delivery_latency_ms || 0);
       }
       state.lastLatencyMs = Number(metadata.delivery_latency_ms || 0);
+      state.lastTiming = metadata.timing || {};
       const detTotal = Array.from(state.cameras.values()).reduce((acc, cam) => acc + cam.detections.length, 0);
       document.getElementById("detCount").textContent = detTotal;
       for (const alert of metadata.alerts || []) {
