@@ -257,6 +257,7 @@ INDEX_HTML = """<!doctype html>
       </section>
     </aside>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
   <script>
     const params = new URLSearchParams(window.location.search);
     const DEFAULT_CAMERAS = ["cam_02", "cam_03", "cam_05", "cam_07"];
@@ -268,6 +269,9 @@ INDEX_HTML = """<!doctype html>
     const sourceW = Number(params.get("source_w") || 768);
     const sourceH = Number(params.get("source_h") || 576);
     const overlayDelayMs = Math.max(0, Number(params.get("overlay_delay_ms") || 0));
+    const syncMode = params.get("sync_mode") || (videoMode === "hls" ? "video" : "delay");
+    const syncOffsetMs = Number(params.get("sync_offset_ms") || 1000);
+    const syncSafetyMs = Number(params.get("sync_safety_ms") || 250);
     const state = {
       cameras: new Map(),
       zones: new Map(),
@@ -292,7 +296,9 @@ INDEX_HTML = """<!doctype html>
           frame: "-",
           lastMetadataMs: 0,
           deliveryLatencyMs: 0,
+          videoLatencyMs: 0,
           mediaEl: null,
+          hls: null,
           canvas: null,
           ctx: null,
         });
@@ -305,6 +311,7 @@ INDEX_HTML = """<!doctype html>
     function videoUrlFor(camId) {
       if (explicitVideo && requestedCameras.length === 1) return explicitVideo;
       if (!videoBase) return "";
+      if (videoMode === "hls") return `${videoBase}/${camId}/index.m3u8`;
       return `${videoBase}/${camId}/`;
     }
 
@@ -326,6 +333,72 @@ INDEX_HTML = """<!doctype html>
       return "off";
     }
 
+    function updateVideoLatency(cam) {
+      if (!cam || !cam.mediaEl) return;
+      let latencyMs = 0;
+      if (cam.hls && Number.isFinite(cam.hls.latency)) {
+        latencyMs = cam.hls.latency * 1000;
+      } else {
+        const video = cam.mediaEl;
+        try {
+          if (video.seekable && video.seekable.length > 0) {
+            const liveEdge = video.seekable.end(video.seekable.length - 1);
+            latencyMs = Math.max(0, (liveEdge - video.currentTime) * 1000);
+          }
+        } catch (_) {}
+      }
+      if (latencyMs > 0 && Number.isFinite(latencyMs)) {
+        cam.videoLatencyMs = latencyMs;
+      }
+    }
+
+    function effectiveOverlayDelayMs() {
+      if (syncMode === "video") {
+        const latencies = Array.from(state.cameras.values())
+          .map((cam) => {
+            updateVideoLatency(cam);
+            return Number(cam.videoLatencyMs || 0);
+          })
+          .filter((value) => value > 0);
+        if (latencies.length > 0) {
+          return Math.max(...latencies) + syncOffsetMs + syncSafetyMs;
+        }
+      }
+      return overlayDelayMs;
+    }
+
+    function setupHlsVideo(camId, cam, video, url) {
+      video.autoplay = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.controls = true;
+      video.preload = "auto";
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = url;
+        video.addEventListener("timeupdate", () => updateVideoLatency(cam));
+        return;
+      }
+      if (window.Hls && window.Hls.isSupported()) {
+        const hls = new window.Hls({
+          lowLatencyMode: true,
+          liveSyncDurationCount: 3,
+          maxLiveSyncPlaybackRate: 1.5,
+        });
+        cam.hls = hls;
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        hls.on(window.Hls.Events.FRAG_CHANGED, () => updateVideoLatency(cam));
+        hls.on(window.Hls.Events.LEVEL_LOADED, () => updateVideoLatency(cam));
+        hls.on(window.Hls.Events.ERROR, (_event, data) => {
+          if (data && data.fatal) {
+            try { hls.startLoad(); } catch (_) {}
+          }
+        });
+        return;
+      }
+      video.src = url;
+    }
+
     function buildMedia(camId, cam) {
       const url = videoUrlFor(camId);
       const stage = document.createElement("div");
@@ -343,12 +416,15 @@ INDEX_HTML = """<!doctype html>
         stage.appendChild(iframe);
       } else {
         const video = document.createElement("video");
-        video.src = url;
-        video.autoplay = true;
-        video.muted = true;
-        video.playsInline = true;
-        video.controls = true;
         cam.mediaEl = video;
+        if (videoMode === "hls") setupHlsVideo(camId, cam, video, url);
+        else {
+          video.src = url;
+          video.autoplay = true;
+          video.muted = true;
+          video.playsInline = true;
+          video.controls = true;
+        }
         stage.appendChild(video);
       }
       const canvas = document.createElement("canvas");
@@ -519,7 +595,9 @@ INDEX_HTML = """<!doctype html>
             badge.textContent = freshness === "live" ? "metadata live" : freshness === "stale" ? "stale" : "no metadata";
           }
         }
-        rows.push(`<div class="status-row"><span><i class="dot ${freshness}"></i>${camId}</span><span>${cam.detections.length} bbox</span><span>${ageS}s</span></div>`);
+        updateVideoLatency(cam);
+        const videoLag = cam.videoLatencyMs ? `${(cam.videoLatencyMs / 1000).toFixed(1)}s video` : "";
+        rows.push(`<div class="status-row"><span><i class="dot ${freshness}"></i>${camId}</span><span>${cam.detections.length} bbox ${videoLag}</span><span>${ageS}s</span></div>`);
       }
       cameraStatus.innerHTML = rows.join("") || '<div class="empty">No cameras configured.</div>';
       document.getElementById("latency").textContent = `${state.lastLatencyMs.toFixed(1)} ms`;
@@ -545,6 +623,19 @@ INDEX_HTML = """<!doctype html>
       return Number(metadata.received_epoch_ms || metadata.created_epoch_ms || (metadata.created_epoch_s || 0) * 1000 || Date.now());
     }
 
+    function metadataSyncTimeMs(metadata) {
+      const times = [];
+      for (const det of metadata.detections || []) {
+        if (det.timestamp) times.push(Number(det.timestamp) * 1000);
+      }
+      for (const alert of metadata.alerts || []) {
+        if (alert.timestamp) times.push(Number(alert.timestamp) * 1000);
+      }
+      const valid = times.filter((value) => Number.isFinite(value) && value > 0);
+      if (valid.length > 0) return Math.max(...valid);
+      return Number(metadata.created_epoch_ms || (metadata.created_epoch_s || 0) * 1000 || Date.now());
+    }
+
     function metadataKey(metadata) {
       return `${metadata.run_label || ""}:${metadata.frame ?? ""}:${metadataTimeMs(metadata)}`;
     }
@@ -553,22 +644,23 @@ INDEX_HTML = """<!doctype html>
       if (!metadata || !metadata.schema) return;
       state.metadataBuffer.push(metadata);
       if (state.metadataBuffer.length > 600) state.metadataBuffer.splice(0, state.metadataBuffer.length - 600);
-      if (overlayDelayMs === 0) applyMetadata(metadata);
+      if (effectiveOverlayDelayMs() === 0) applyMetadata(metadata);
     }
 
     function applyBufferedMetadata() {
-      if (overlayDelayMs <= 0 || state.metadataBuffer.length === 0) return;
-      const targetTime = Date.now() - overlayDelayMs;
+      const delayMs = effectiveOverlayDelayMs();
+      if (delayMs <= 0 || state.metadataBuffer.length === 0) return;
+      const targetTime = Date.now() - delayMs;
       let chosen = null;
       for (const metadata of state.metadataBuffer) {
-        if (metadataTimeMs(metadata) <= targetTime) chosen = metadata;
+        if (metadataSyncTimeMs(metadata) <= targetTime) chosen = metadata;
         else break;
       }
       if (!chosen) return;
       const key = metadataKey(chosen);
       if (key === state.lastAppliedMetadataKey) return;
       applyMetadata(chosen);
-      state.metadataBuffer = state.metadataBuffer.filter((metadata) => metadataTimeMs(metadata) >= targetTime - 5000);
+      state.metadataBuffer = state.metadataBuffer.filter((metadata) => metadataSyncTimeMs(metadata) >= targetTime - 5000);
     }
 
     function applyMetadata(metadata) {
