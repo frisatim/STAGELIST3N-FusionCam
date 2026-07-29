@@ -8,8 +8,8 @@ Ce script permet de :
   4. Sauvegarder la vidéo annotée si --save est spécifié
 
 Usage :
-  python test_tracker.py --cam cam_03 --model ../yolov8n.pt
-  python test_tracker.py --cam cam_03 --model ../yolov8n.pt --save --max-frames 500
+  python visual_check_tracker.py --cam cam_03 --model ../yolov8n.pt
+  python visual_check_tracker.py --cam cam_03 --model ../yolov8n.pt --save --max-frames 500
 
 Critère de validation (à vérifier visuellement) :
   - Une même personne garde le même track_id (même couleur) tout au long de la vidéo

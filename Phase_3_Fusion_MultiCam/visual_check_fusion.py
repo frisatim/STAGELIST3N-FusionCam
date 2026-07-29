@@ -1,13 +1,13 @@
 """
-test_fusion.py — Interactive multi-camera fusion test harness.
+visual_check_fusion.py — Interactive multi-camera fusion test harness.
 
 Loads CameraTracker instances and MultiCameraFusion, reads one frame per
 camera per iteration, runs ByteTrack + fusion, logs cross-camera associations
 to the console, and displays an annotated side-by-side view.
 
 Usage:
-    python test_fusion.py --cameras cam_03,cam_05,cam_07 --model ../yolov8n.pt
-    python test_fusion.py --cameras cam_03,cam_07 --model ../yolov8n.pt --max-frames 300
+    python visual_check_fusion.py --cameras cam_03,cam_05,cam_07 --model ../yolov8n.pt
+    python visual_check_fusion.py --cameras cam_03,cam_07 --model ../yolov8n.pt --max-frames 300
 """
 
 from __future__ import annotations

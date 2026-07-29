@@ -1,6 +1,6 @@
 """Pytest checks for the Phase 3 CameraTracker.
 
-These tests keep the existing manual script test_tracker.py untouched.
+These tests keep the existing manual script visual_check_tracker.py untouched.
 They mock Ultralytics so pytest can validate the tracker wiring without
 loading a YOLO model, CUDA, or video files.
 """

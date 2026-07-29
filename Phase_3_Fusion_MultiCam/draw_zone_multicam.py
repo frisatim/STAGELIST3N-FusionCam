@@ -13,9 +13,9 @@ Workflow :
   6. Sauvegarde des coordonnées mètres dans config.yaml
 
 Usage :
-    python draw_zone-multicam.py --ref-camera cam_03
-    python draw_zone-multicam.py --ref-camera cam_06 --zone zone_2
-    python draw_zone-multicam.py --ref-camera cam_03 --source 2  (video locale)
+    python draw_zone_multicam.py --ref-camera cam_03
+    python draw_zone_multicam.py --ref-camera cam_06 --zone zone_2
+    python draw_zone_multicam.py --ref-camera cam_03 --source 2  (video locale)
 """
 
 import os
