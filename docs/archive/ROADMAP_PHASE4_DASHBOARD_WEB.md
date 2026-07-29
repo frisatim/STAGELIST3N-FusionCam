@@ -170,14 +170,14 @@ Limite actuelle :
 Architecture testee :
 
 ```text
-Cameras IP 172.16.2.x
+Cameras IP <CAMERA_NET>.x
   -> PC passerelle Windows
-     - Ethernet cameras : 172.16.2.250
-     - Wi-Fi / reseau ecole : 10.19.1.93
+     - Ethernet cameras : <GATEWAY_IP>
+     - Wi-Fi / reseau ecole : <SERVER_IP>
   -> FFmpeg republie les flux
   -> MediaMTX sur le PC passerelle
-     - rtsp://10.19.1.93:8554/cam_02
-     - rtsp://10.19.1.93:8554/cam_03
+     - rtsp://<SERVER_IP>:8554/cam_02
+     - rtsp://<SERVER_IP>:8554/cam_03
   -> serveur Linux GPU
   -> run_live_campaign.py
   -> detection / tracking / fusion / alertes

@@ -286,19 +286,19 @@ Cameras RTSP
 Architecture reseau testee avec le serveur :
 
 ```text
-Cameras IP 172.16.2.x
+Cameras IP <CAMERA_NET>.x
   |
   | RTSP cameras
   v
 PC passerelle Windows
-  - Ethernet cameras : 172.16.2.250
-  - Wi-Fi / reseau ecole : 10.19.1.93
+  - Ethernet cameras : <GATEWAY_IP>
+  - Wi-Fi / reseau ecole : <SERVER_IP>
   |
   | FFmpeg republie les flux
   v
 MediaMTX sur le PC passerelle
-  - rtsp://10.19.1.93:8554/cam_02
-  - rtsp://10.19.1.93:8554/cam_03
+  - rtsp://<SERVER_IP>:8554/cam_02
+  - rtsp://<SERVER_IP>:8554/cam_03
   - ...
   |
   | RTSP relaye

@@ -92,10 +92,10 @@ latence_complete = temps_alerte_systeme - temps_visible_dans_image
 Architecture :
 
 ```text
-Cameras IP 172.16.2.x
-  -> PC passerelle Windows 172.16.2.250 / 10.19.1.93
+Cameras IP <CAMERA_NET>.x
+  -> PC passerelle Windows <GATEWAY_IP> / <SERVER_IP>
   -> FFmpeg
-  -> MediaMTX rtsp://10.19.1.93:8554/cam_XX
+  -> MediaMTX rtsp://<SERVER_IP>:8554/cam_XX
   -> serveur Linux GPU
   -> run_live_campaign.py
   -> detection / tracking / fusion / alertes

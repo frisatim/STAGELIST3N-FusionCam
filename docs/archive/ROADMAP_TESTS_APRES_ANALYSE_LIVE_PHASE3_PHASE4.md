@@ -431,7 +431,7 @@ Architecture actuelle :
 Cameras
   -> PC passerelle
   -> MediaMTX relay
-  -> serveur Capsec
+  -> serveur du laboratoire
   -> inference IA
   -> fusion / alertes
   -> metadata / dashboard
