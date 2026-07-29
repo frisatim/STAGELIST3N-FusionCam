@@ -69,9 +69,18 @@ def truth_flag(row: dict[str, str]) -> bool:
     )
 
 
+def has_truth_flag(row: dict[str, str]) -> bool:
+    for column in ("expected_same", "same_person", "same_object", "is_correct", "correct", "same"):
+        if column in row and row[column] != "":
+            return True
+    return False
+
+
 def load_truth(path: Path) -> list[TruthAssociation]:
     truth: list[TruthAssociation] = []
     for row in read_csv(path):
+        if not has_truth_flag(row):
+            continue
         truth.append(
             TruthAssociation(
                 frame=parse_int(row.get("frame")),
@@ -122,6 +131,10 @@ def evaluate(
     frame_tolerance: int = 0,
 ) -> tuple[dict[str, float], list[dict[str, str | int | float]]]:
     truth_rows = load_truth(truth_csv)
+    if not truth_rows:
+        raise ValueError(
+            "Truth CSV contains no annotated rows. Fill expected_same with 1 or 0 for at least one row."
+        )
     predictions = load_predictions(fusion_links_csv)
 
     tp = fp = fn = tn = ignored_predictions = 0
@@ -220,7 +233,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    metrics, evaluated = evaluate(args.fusion_links, args.truth_csv, frame_tolerance=args.frame_tolerance)
+    try:
+        metrics, evaluated = evaluate(args.fusion_links, args.truth_csv, frame_tolerance=args.frame_tolerance)
+    except FileNotFoundError as exc:
+        raise SystemExit(f"[ERROR] Missing CSV: {exc.filename}") from exc
+    except ValueError as exc:
+        raise SystemExit(f"[ERROR] {exc}") from exc
 
     print("[INFO] Fusion association quality")
     for key in (

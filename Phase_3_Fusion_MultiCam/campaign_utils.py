@@ -26,6 +26,7 @@ PHASE3_DIR = PROJECT_ROOT / "Phase_3_Fusion_MultiCam"
 MODELSTRAINED_DIR = PHASE2_DIR / "Modelstrained"
 DEFAULT_CONFIG = PHASE3_DIR / "config.yaml"
 DEFAULT_REPORTS_DIR = PHASE3_DIR / "reports"
+TAD_FP_MERGE_WINDOW_S = 3.0  # matches Phase_2_Baseline_MonoCam/evaluate_tad.py FP_MERGE_WINDOW_S
 
 
 def first_existing_path(*paths: Path) -> Path:
@@ -324,12 +325,25 @@ def _draw_label(
     cv2.putText(frame, text, (x + 2, y - baseline - 2), font, scale, (0, 0, 0), thick, cv2.LINE_AA)
 
 
+def cluster_unmatched_times(times: list[float], merge_window_s: float) -> int:
+    """Count temporally close unmatched alerts as one FP event, not one per frame."""
+    if not times:
+        return 0
+    ordered = sorted(times)
+    clusters = 1
+    for prev, cur in zip(ordered, ordered[1:]):
+        if cur - prev > merge_window_s:
+            clusters += 1
+    return clusters
+
+
 def match_alerts_to_gt(
     gt_events: list[dict[str, Any]],
     alert_times: list[float],
     gt_frame_key: str,
     fps: float,
     tolerance_s: float = 10.0,
+    fp_merge_window_s: float = 0.0,
 ) -> dict[str, Any]:
     gt_times = [float(ev[gt_frame_key]) / fps for ev in gt_events]
     unmatched_alerts = set(range(len(alert_times)))
@@ -347,7 +361,10 @@ def match_alerts_to_gt(
         unmatched_alerts.remove(idx)
         matched += 1
         delays.append(delay)
-    fp = len(unmatched_alerts)
+    if fp_merge_window_s > 0:
+        fp = cluster_unmatched_times([alert_times[idx] for idx in unmatched_alerts], fp_merge_window_s)
+    else:
+        fp = len(unmatched_alerts)
     fn = len(gt_events) - matched
     precision = safe_div(matched, matched + fp)
     recall = safe_div(matched, matched + fn)
@@ -1259,7 +1276,13 @@ def compute_phase3_metrics(
         for ev in gt_tad:
             cls = normalize_class(ev.get("classe_objet", ""))
             all_tad_alert_times.extend(tad_alert_times_by_class.get(cls, []))
-        tad = match_alerts_to_gt(gt_tad, sorted(set(all_tad_alert_times)), "trame_apparition", fps)
+        tad = match_alerts_to_gt(
+            gt_tad,
+            sorted(set(all_tad_alert_times)),
+            "trame_apparition",
+            fps,
+            fp_merge_window_s=TAD_FP_MERGE_WINDOW_S,
+        )
         tad_rows.append(
             {
                 "model_version": campaign.model_spec.version,

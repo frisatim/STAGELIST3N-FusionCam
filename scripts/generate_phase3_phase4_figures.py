@@ -24,7 +24,14 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE_ROOT = REPO_ROOT.parent
-OUT_DIR = REPO_ROOT / "docs" / "figures" / "phase3_phase4_20260623"
+OUT_DIR = REPO_ROOT / "docs" / "figures" / "phase3_phase4_20260707"
+RECORDED_CAMPAIGN_DIR = (
+    WORKSPACE_ROOT
+    / "Phase_3_Fusion_MultiCam"
+    / "reports"
+    / "campaign_zone1_20260707_220155"
+)
+RECORDED_MODEL_RUN_DIR = RECORDED_CAMPAIGN_DIR / "phase3" / "V4_person_objects_yolov8s_fp32_engine"
 
 
 BLUE = "#245999"
@@ -98,11 +105,12 @@ def style_axes(ax: plt.Axes, grid_axis: str = "y") -> None:
 def annotate_bars(ax: plt.Axes, bars, fmt: str = "{:.2f}", pad: float = 3.0) -> None:
     for bar in bars:
         height = bar.get_height()
-        if np.isnan(height):
+        if np.isnan(height) or height == 0:
             continue
+        top = bar.get_y() + height
         ax.annotate(
             fmt.format(height),
-            xy=(bar.get_x() + bar.get_width() / 2, height),
+            xy=(bar.get_x() + bar.get_width() / 2, top),
             xytext=(0, pad),
             textcoords="offset points",
             ha="center",
@@ -358,13 +366,7 @@ def figure_alerts_by_type() -> None:
         ),
         (
             "Recorded V4",
-            WORKSPACE_ROOT
-            / "Phase_3_Fusion_MultiCam"
-            / "reports"
-            / "campaign_zone1_20260527_135237"
-            / "phase3"
-            / "V4_person_objects_yolov8s_fp32_engine"
-            / "alerts.csv",
+            RECORDED_MODEL_RUN_DIR / "alerts.csv",
         ),
     ]
     categories = [
@@ -409,22 +411,16 @@ def figure_alerts_by_type() -> None:
 def figure_object_weak_confirmed() -> None:
     runs = [
         (
-            "Server 2 cams",
+            "Server\n2 cams, 5 min\n(pré-class-aware)",
             WORKSPACE_ROOT / "server_relay_runs" / "server_relay_2cam_tcp100_5min" / "phase3" / "alerts.csv",
         ),
         (
-            "Server 4 cams",
+            "Server\n4 cams, 10 min\n(pré-class-aware)",
             WORKSPACE_ROOT / "server_relay_runs" / "server_relay_4cam_tcp100_10min" / "phase3" / "alerts.csv",
         ),
         (
-            "Recorded V4",
-            WORKSPACE_ROOT
-            / "Phase_3_Fusion_MultiCam"
-            / "reports"
-            / "campaign_zone1_20260527_135237"
-            / "phase3"
-            / "V4_person_objects_yolov8s_fp32_engine"
-            / "alerts.csv",
+            "Recorded V4\n4 cams\n(class-aware)",
+            RECORDED_MODEL_RUN_DIR / "alerts.csv",
         ),
     ]
     labels: list[str] = []
@@ -461,13 +457,7 @@ def figure_object_weak_confirmed() -> None:
 
 
 def group_comparison() -> dict[tuple[str, str], dict[str, float]]:
-    path = (
-        WORKSPACE_ROOT
-        / "Phase_3_Fusion_MultiCam"
-        / "reports"
-        / "campaign_zone1_20260527_135237"
-        / "comparison_phase2_phase3.csv"
-    )
+    path = RECORDED_CAMPAIGN_DIR / "comparison_phase2_phase3.csv"
     rows = read_rows(path)
     grouped: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
     for row in rows:

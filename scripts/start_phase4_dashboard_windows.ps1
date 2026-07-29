@@ -85,9 +85,9 @@ for camera_id in cameras:
         $rtspUrl = $parts[1]
         $relayUrl = "rtsp://127.0.0.1:8554/$cameraId"
         if ($TranscodeRelays) {
-            $relayCmd = "ffmpeg -re -stream_loop -1 -i " + (Quote-Arg $rtspUrl) + " -an -vf scale=704:576,fps=25,format=yuv420p -c:v libx264 -preset veryfast -tune zerolatency -g 25 -keyint_min 25 -bf 0 -f rtsp -rtsp_transport tcp " + $relayUrl
+            $relayCmd = "ffmpeg -rtsp_transport tcp -i " + (Quote-Arg $rtspUrl) + " -an -vf scale=704:576,fps=25,format=yuv420p -c:v libx264 -preset veryfast -tune zerolatency -g 25 -keyint_min 25 -bf 0 -f rtsp -rtsp_transport tcp " + $relayUrl
         } else {
-            $relayCmd = "ffmpeg -re -stream_loop -1 -rtsp_transport tcp -i " + (Quote-Arg $rtspUrl) + " -an -c:v copy -f rtsp -rtsp_transport tcp " + $relayUrl
+            $relayCmd = "ffmpeg -rtsp_transport tcp -i " + (Quote-Arg $rtspUrl) + " -an -c:v copy -f rtsp -rtsp_transport tcp " + $relayUrl
         }
         Start-Process powershell -ArgumentList @(
             "-NoExit",
