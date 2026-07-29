@@ -1,31 +1,35 @@
-# Final Delivery Checklist
+# Checklist de livraison finale
 
-This checklist describes the clean handoff package to give to supervisors or to
-install on a new test machine.
+Cette checklist decrit le package de livraison propre a donner aux tuteurs ou
+a installer sur une nouvelle machine de test.
 
-## 1. Repository
+## 1. Depot
 
-Deliver the Git repository:
+Livrer le depot Git :
 
 ```text
 STAGELIST3N-FusionCam/
 ```
 
-The repository contains code, lightweight ground truths, small CSV summaries,
-documentation, Docker files and setup scripts.
+Le depot contient le code, les ground truths legeres, les petits resumes CSV,
+la documentation, les fichiers Docker et les scripts d'installation.
 
-Do not add these files to Git:
+La reference des versions d'environnement (GPU, CUDA, Python, Ultralytics)
+est documentee dans `docs/ENVIRONNEMENT_REFERENCE.md` et
+`requirements.lock.txt`.
 
-- real RTSP URLs, camera passwords or internal IP addresses;
-- datasets;
-- recordings;
-- trained `.pt` weights;
-- TensorRT `.engine` files;
-- large generated reports and logs.
+Ne pas ajouter ces fichiers a Git :
 
-## 2. Heavy Data Folder
+- vraies URLs RTSP, mots de passe camera ou adresses IP internes ;
+- datasets ;
+- enregistrements ;
+- poids `.pt` entraines ;
+- fichiers TensorRT `.engine` ;
+- gros rapports et logs generes.
 
-Deliver the heavy-data folder separately, for example on a USB drive:
+## 2. Dossier de donnees lourdes
+
+Livrer le dossier de donnees lourdes separement, par exemple sur une cle USB :
 
 ```text
 STAGELIST3N-FusionCam-data/
@@ -45,109 +49,113 @@ STAGELIST3N-FusionCam-data/
   exports/
 ```
 
-Important model example:
+Exemple de modeles importants :
 
 ```text
 models/V4/person_objects/yolov8s/weights/best.pt
 models/V4/person_objects/yolov8s/weights/best.engine
 ```
 
-If TensorRT `.engine` files fail on another GPU, regenerate them from `.pt` on
-the target machine.
+Si des fichiers TensorRT `.engine` echouent sur un autre GPU, les regenerer
+depuis les `.pt` sur la machine cible.
 
-## 3. New Windows Machine
+## 3. Nouvelle machine Windows
 
-Clone the repo:
+Cloner le repo :
 
 ```powershell
 git clone https://github.com/frisatim/STAGELIST3N-FusionCam.git
 cd STAGELIST3N-FusionCam
 ```
 
-Run setup:
+Lancer le setup :
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 .\scripts\setup_new_pc_windows.ps1 -UseDesktopAivenv -InstallOptionalNetwork
 ```
 
-Copy heavy data from USB:
+Copier les donnees lourdes depuis l'USB :
 
 ```powershell
 .\scripts\copy_heavy_data_from_usb.ps1 -SourceRoot E:\STAGELIST3N-FusionCam-data
 ```
 
-Create native Windows junctions:
+Creer les jonctions natives Windows :
 
 ```powershell
 .\scripts\link_external_data_windows.ps1
 ```
 
-Activate Python:
+Activer Python :
 
 ```powershell
 & "$env:USERPROFILE\Desktop\aivenv\Scripts\Activate.ps1"
 ```
 
-## 4. Docker Machine
+## 4. Machine Docker
 
-Create `.env`:
+Creer `.env` :
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Build:
+Build (utiliser `docker compose`, Docker Compose v2 ; voir
+`docs/DOCKER_DELIVERY.md`) :
 
 ```powershell
-docker-compose build fusioncam
+docker compose build fusioncam
 ```
 
-Open a shell:
+Ouvrir un shell :
 
 ```powershell
-docker-compose run --rm fusioncam bash
+docker compose run --rm fusioncam bash
 ```
 
-Smoke test inside Docker:
+Test de fumee dans Docker :
 
 ```bash
 python3 -m pytest Phase_3_Fusion_MultiCam/test_campaign_utils_pytest.py -q
 ```
 
-## 5. Validation Commands
+## 5. Commandes de validation
 
-Python/GPU:
+Python/GPU :
 
 ```powershell
 python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
 python -c "from ultralytics import YOLO; YOLO(r'Phase_2_Baseline_MonoCam\Modelstrained\V4\person_objects\yolov8s\weights\best.pt'); print('model ok')"
 ```
 
-Phase 3 recorded smoke test:
+Test de fumee Phase 3 recorded :
 
 ```powershell
-python Phase_3_Fusion_MultiCam/run_recorded_campaign.py --dataset-version V4 --models yolov8s --formats pt --no-display --device cuda:0 --skip-phase2
+python Phase_3_Fusion_MultiCam/run_recorded_campaign.py --dataset-version V4 --models yolov8s --formats pt --no-display --device cuda:0 --phase2-device gpu --phase2-imgsz 960
 ```
 
-Phase 3 live performance smoke test:
+Test de fumee performance Phase 3 live :
 
 ```powershell
 python Phase_3_Fusion_MultiCam/run_live_campaign.py --versions V4 --models yolov8s --formats pt --cameras cam_02,cam_07 --duration-min 2 --device cuda:0 --no-display --no-record-video
 ```
 
-Use `--formats fp32_engine` only after confirming that the local TensorRT engine
-loads on the target GPU.
+Utiliser `--formats fp32_engine` seulement apres avoir confirme que l'engine
+TensorRT local se charge sur le GPU cible.
 
-## 6. Security Check Before Public Release
+## 6. Verification securite avant publication
 
-Before making a new repository snapshot public, check:
+Avant de rendre public un nouveau snapshot du depot, verifier :
 
 ```powershell
 git status
-git grep -n -I -E "FFCA|172\.16\.|rtsp://admin:[^<]|github_pat|ghp_|sk-"
+git grep -n -I -E "F[F]CA|172\.16\.|rtsp://admin[:][^<]|github_p[a]t|gh[p]_|\bs[k]-"
 git ls-files | Select-String -Pattern "\.pt$|\.engine$|\.onnx$|\.mp4$|\.mkv$|\.avi$"
 ```
 
-Expected result: no real credentials, no internal IPs, no private local paths and
-no heavy model/video artifacts tracked by Git.
+Resultat attendu pour la commande `git grep` : aucune sortie sur un depot
+propre.
+
+Resultat attendu global : pas de vrais identifiants, pas d'IP internes, pas de
+chemins locaux prives et pas de gros artefacts modeles/videos suivis par Git.

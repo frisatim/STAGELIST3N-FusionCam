@@ -150,7 +150,7 @@ Run from repo root:
 
 ```powershell
 git status
-git grep -n -I -E "FFCA|172\.16\.|rtsp://admin:[^<]|github_pat|ghp_|sk-"
+git grep -n -I -E "F[F]CA|172\.16\.|rtsp://admin[:][^<]|github_p[a]t|gh[p]_|\bs[k]-"
 git ls-files | Select-String -Pattern "\.pt$|\.engine$|\.onnx$|\.mp4$|\.mkv$|\.avi$"
 ```
 

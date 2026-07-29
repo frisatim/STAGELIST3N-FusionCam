@@ -1,17 +1,17 @@
-# Docker and Heavy Data Delivery
+# Livraison Docker et donnees lourdes
 
-The Git repository contains code, documentation, lightweight ground truths and
-small result summaries. Heavy assets are kept outside Git and mounted as Docker
-volumes.
+Le depot Git contient le code, la documentation, les ground truths legeres et
+les petits resumes de resultats. Les assets lourds restent hors Git et sont
+montes comme volumes Docker.
 
-## Recommended Delivery Layout
+## Layout de livraison recommande
 
-The canonical data layout is documented in `docs/DATA_LAYOUT.md`.
+Le layout de donnees canonique est documente dans `docs/DATA_LAYOUT.md`.
 
 ```text
 delivery/
-  STAGELIST3N-FusionCam/          # Git repository
-  STAGELIST3N-FusionCam-data/     # Heavy assets, not tracked by Git
+  STAGELIST3N-FusionCam/          # depot Git
+  STAGELIST3N-FusionCam-data/     # donnees lourdes, hors Git
     datasets/
       dataset_objets_V4/
       dataset_objets_HD/
@@ -28,82 +28,94 @@ delivery/
     exports/
 ```
 
-The Docker image provides the execution environment. The data directory provides
-datasets, recordings, trained weights, TensorRT engines and large reports.
+L'image Docker fournit l'environnement d'execution. Le dossier de donnees
+fournit les datasets, les enregistrements, les poids entraines, les engines
+TensorRT et les gros rapports.
 
-## Why Data Is Not Baked Into The Image
+## Pourquoi les donnees ne sont pas dans l'image
 
-Keeping datasets and models outside the image is more practical:
+Garder les datasets et les modeles hors de l'image est plus pratique :
 
-- the Docker image stays smaller and faster to rebuild;
-- datasets and results can be updated without rebuilding the image;
-- `.engine` TensorRT files are often tied to the GPU, CUDA and TensorRT version;
-- `.pt` weights remain the portable source of truth and engines can be rebuilt.
+- l'image Docker reste plus petite et plus rapide a reconstruire ;
+- les datasets et les resultats peuvent etre mis a jour sans reconstruire
+  l'image ;
+- les fichiers TensorRT `.engine` sont souvent lies au GPU et aux versions
+  CUDA et TensorRT ;
+- les poids `.pt` restent la source de verite portable et les engines peuvent
+  etre regeneres.
 
-## First Setup
+## Premiere installation
 
-Copy `.env.example` to `.env`:
+Copier `.env.example` vers `.env` :
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` if the data folder is not next to the repository:
+Editer `.env` si le dossier de donnees n'est pas a cote du repo :
 
 ```text
 FUSIONCAM_DATA_DIR=../STAGELIST3N-FusionCam-data
 ```
 
-Create the heavy-data folder skeleton:
+Creer le squelette du dossier de donnees lourdes :
 
 ```bash
 python3 scripts/prepare_delivery_layout.py \
   --data-dir ../STAGELIST3N-FusionCam-data
 ```
 
-Then manually copy datasets, recordings, models and reports into the created
-folders, or use the USB copy helper on Windows:
+Puis copier manuellement les datasets, enregistrements, modeles et rapports
+dans les dossiers crees, ou utiliser le helper de copie USB sur Windows :
 
 ```powershell
 .\scripts\copy_heavy_data_from_usb.ps1 -SourceRoot E:\BenchmarkingAI
 ```
 
-This command accepts either the original full project folder or an already
-prepared `STAGELIST3N-FusionCam-data` folder on the USB drive.
+Cette commande accepte soit le dossier projet complet d'origine, soit un
+dossier `STAGELIST3N-FusionCam-data` deja prepare sur la cle USB.
 
-For native Windows runs outside Docker, create local junctions after the copy:
+Pour les runs natifs Windows hors Docker, creer les jonctions locales apres la
+copie :
 
 ```powershell
 .\scripts\link_external_data_windows.ps1
 ```
 
-The junctions expose the external data at the historical paths used by the
-Python scripts without duplicating large files inside Git.
+Les jonctions exposent les donnees externes aux chemins historiques utilises
+par les scripts Python sans dupliquer de gros fichiers dans Git.
 
 ## Build
 
+Important : utiliser la commande `docker compose` (Docker Compose v2), pas
+l'ancien binaire `docker-compose` (v1). L'acces GPU declare via
+`deploy.resources` dans `docker-compose.yml` n'est honore que par Docker
+Compose v2 ; avec l'ancien binaire `docker-compose`, le conteneur demarre
+sans GPU.
+
 ```bash
-docker-compose build fusioncam
+docker compose build fusioncam
 ```
 
-## Open A Shell
+## Ouvrir un shell
 
 ```bash
-docker-compose run --rm fusioncam bash
+docker compose run --rm fusioncam bash
 ```
 
-Inside the container:
+Dans le conteneur :
 
 ```bash
 python3 -m pytest Phase_3_Fusion_MultiCam/test_campaign_utils_pytest.py -q
 ```
 
-## Run Recorded Campaign
+## Lancer une campagne recorded
 
-Example after placing recordings and models in the mounted data folder:
+Exemple apres avoir place les enregistrements et les modeles dans le dossier
+de donnees monte :
 
 ```bash
-docker-compose run --rm fusioncam \
+docker compose run --rm fusioncam \
   python3 Phase_3_Fusion_MultiCam/run_recorded_campaign.py \
     --dataset-version V4 \
     --models yolov8s \
@@ -114,17 +126,18 @@ docker-compose run --rm fusioncam \
     --phase2-imgsz 960
 ```
 
-Before running campaigns, verify the mounts:
+Avant de lancer des campagnes, verifier les montages :
 
 ```bash
-docker-compose run --rm fusioncam \
+docker compose run --rm fusioncam \
   python3 scripts/verify_data_layout.py \
     --data-dir /workspace/data \
     --model-version V4 \
     --model yolov8s
 ```
 
-Paths in configs may need to be adapted to the mounted data directories:
+Les chemins dans les configs peuvent devoir etre adaptes aux dossiers de
+donnees montes :
 
 ```text
 /workspace/data/datasets
@@ -133,8 +146,8 @@ Paths in configs may need to be adapted to the mounted data directories:
 /workspace/data/reports
 ```
 
-For compatibility with the existing research scripts, Docker Compose also mounts
-the same external data into the historical paths:
+Pour la compatibilite avec les scripts de recherche existants, Docker Compose
+monte aussi les memes donnees externes dans les chemins historiques :
 
 ```text
 /workspace/code/dataset
@@ -145,36 +158,41 @@ the same external data into the historical paths:
 /workspace/code/Phase_3_Fusion_MultiCam/reports
 ```
 
-## RTSP Replay From Recordings
+## Replay RTSP depuis les enregistrements
 
-Start MediaMTX:
+Demarrer MediaMTX :
 
 ```bash
-docker-compose up -d mediamtx
+docker compose up -d mediamtx
 ```
 
-By default the MediaMTX ports are bound to `127.0.0.1` in
-`docker-compose.yml`. Keep this default for local tests. If video replay must be
-reachable from another machine, expose the ports only on a trusted network and
-add the appropriate firewall or MediaMTX authentication rules.
+Par defaut, les ports MediaMTX sont lies a `127.0.0.1` dans
+`docker-compose.yml`. Garder ce defaut pour les tests locaux. Si le replay
+video doit etre accessible depuis une autre machine, exposer les ports
+uniquement sur un reseau de confiance et ajouter les regles de pare-feu ou
+d'authentification MediaMTX appropriees.
 
-Then publish recordings with FFmpeg as documented in
+Puis publier les enregistrements avec FFmpeg comme documente dans
 `docker/replay_rtsp_examples.md`.
 
-This allows repeatable live-like tests from annotated video files.
+Cela permet des tests repetables de type live a partir de fichiers video
+annotes.
 
-## What To Give To Tutors
+## Ce qu'il faut donner aux tuteurs
 
-Recommended files:
+Elements recommandes :
 
-- the Git repository;
-- `STAGELIST3N-FusionCam-data` as a `.zip`, `.tar` or external drive folder;
-- this Docker setup;
-- a short note with GPU, CUDA, Python and Ultralytics versions used for training.
+- le depot Git ;
+- `STAGELIST3N-FusionCam-data` en `.zip`, `.tar` ou dossier sur disque
+  externe ;
+- ce setup Docker ;
+- la reference des versions GPU, CUDA, Python et Ultralytics utilisees pour
+  l'entrainement : voir `docs/ENVIRONNEMENT_REFERENCE.md` et
+  `requirements.lock.txt`.
 
-Keep both `.pt` and `.engine` when available. If the `.engine` fails on another
-machine, regenerate it from the `.pt`.
+Garder a la fois les `.pt` et les `.engine` quand ils existent. Si le
+`.engine` echoue sur une autre machine, le regenerer depuis le `.pt`.
 
-Do not place datasets, recordings, `.pt`, `.engine` or real RTSP credentials in
-Git. Keep them in `STAGELIST3N-FusionCam-data` or another private storage
-location.
+Ne pas placer de datasets, d'enregistrements, de `.pt`, de `.engine` ni de
+vrais identifiants RTSP dans Git. Les garder dans `STAGELIST3N-FusionCam-data`
+ou dans un autre stockage prive.

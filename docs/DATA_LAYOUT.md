@@ -190,7 +190,7 @@ FUSIONCAM_DATA_DIR=../STAGELIST3N-FusionCam-data
 Puis :
 
 ```bash
-docker-compose run --rm fusioncam \
+docker compose run --rm fusioncam \
   python3 scripts/verify_data_layout.py \
     --data-dir /workspace/data \
     --model-version V4 \
@@ -200,7 +200,7 @@ docker-compose run --rm fusioncam \
 Run recorded :
 
 ```bash
-docker-compose run --rm fusioncam \
+docker compose run --rm fusioncam \
   python3 Phase_3_Fusion_MultiCam/run_recorded_campaign.py \
     --dataset-version V4 \
     --models yolov8s \

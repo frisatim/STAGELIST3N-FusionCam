@@ -11,10 +11,14 @@ Le principe experimental reste simple: changer une seule variable a la fois.
 
 ## Outils disponibles sans cameras
 
-Generer la matrice d'experiences:
+Generer la matrice d'experiences (la matrice versionnee dans ce dossier
+a ete generee avec la commande Linux/WSL ci-dessous). `--interface` est
+le nom de l'interface reseau LINUX utilise dans les commandes tc netem
+generees (eth0 en general), meme si la generation est lancee depuis
+Windows :
 
 ```powershell
-python Phase_4_Network_Latency/experiment_plan.py --interface Ethernet --python-exe python --os-targets linux --link-types ethernet,wifi
+python Phase_4_Network_Latency/experiment_plan.py --interface eth0 --python-exe python3 --os-targets linux --link-types ethernet,wifi
 ```
 
 Depuis Linux/WSL:
