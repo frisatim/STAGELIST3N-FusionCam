@@ -23,15 +23,16 @@ VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v")
 
 
 def _res_matches(a, b, tol=2):
+    """Indique si deux résolutions (largeur, hauteur) coïncident à `tol` pixels près."""
     if not a or not b or len(a) != 2 or len(b) != 2:
         return False
     return abs(int(a[0]) - int(b[0])) <= tol and abs(int(a[1]) - int(b[1])) <= tol
 
 
 def _convert_h_to_resolution(H, src_res, dst_res):
-    """Adapte une homographie pixels->metres d'une resolution src vers dst.
+    """Adapte une homographie pixels -> mètres d'une résolution src vers dst.
 
-    Si H mappe des pixels src vers les metres, alors pour des pixels dst :
+    Si H projette des pixels src vers les mètres, alors pour des pixels dst :
       p_src = S * p_dst  =>  H_dst = H_src @ S
     """
     sw, sh = int(src_res[0]), int(src_res[1])
@@ -49,6 +50,11 @@ def _convert_h_to_resolution(H, src_res, dst_res):
 
 
 def _res_distance(a, b):
+    """Distance logarithmique entre deux résolutions (0 = identiques).
+
+    Sert à choisir la résolution calibrée la plus proche de la frame réelle.
+    Renvoie l'infini si l'une des résolutions est absente ou invalide.
+    """
     if not a or not b or len(a) != 2 or len(b) != 2:
         return float("inf")
     aw, ah = float(a[0]), float(a[1])
@@ -71,7 +77,7 @@ def fix_aspect_ratio(frame: np.ndarray, cam_id: str, config: dict) -> np.ndarray
     target_w, target_h = ar_fix["corrected_resolution"]
     distorted_w, distorted_h = ar_fix.get("distorted_resolution", [704, 576])
 
-    # N'appliquer le correctif que si la frame correspond vraiment au sub-stream deforme.
+    # N'appliquer le correctif que si la frame correspond vraiment au sub-stream déformé.
     if not (w == distorted_w and h == distorted_h):
         return frame
 
@@ -81,7 +87,11 @@ def fix_aspect_ratio(frame: np.ndarray, cam_id: str, config: dict) -> np.ndarray
 
 
 def resolve_video_source(raw_source: str, config_path: Path) -> str:
-    """Resolve les chemins locaux en absolu pour eviter les erreurs backend GStreamer."""
+    """Résout les chemins locaux en absolu pour éviter les erreurs du backend GStreamer.
+
+    Les URL (contenant '://') sont renvoyées telles quelles ; les chemins relatifs
+    sont testés par rapport au dossier du config.yaml puis à la racine du projet.
+    """
     if not raw_source:
         return raw_source
     if "://" in raw_source:
@@ -100,6 +110,8 @@ def resolve_video_source(raw_source: str, config_path: Path) -> str:
 
 
 def _extract_cam_number(cam_id: str, cam_cfg: dict):
+    """Extrait le numéro de caméra depuis le nom configuré ("Camera N"),
+    sinon depuis l'identifiant "cam_NN". Renvoie None si introuvable."""
     name = str(cam_cfg.get("name", ""))
     m = re.search(r"Camera\s+(\d+)", name)
     if m:
@@ -112,6 +124,9 @@ def _extract_cam_number(cam_id: str, cam_cfg: dict):
 
 
 def _extract_cam_suffix(cam_cfg: dict):
+    """Extrait le suffixe IP de la caméra (deux derniers octets, ex. "2.11")
+    depuis l'adresse IP ou le nom configuré. Sert à retrouver les fichiers
+    d'enregistrement nommés Camera_<num>_<suffixe>_<date>_<heure>."""
     # Ex: <CAMERA_IP> -> 2.11
     ip = str(cam_cfg.get("ip", "")).strip()
     parts = ip.split(".")
@@ -126,6 +141,7 @@ def _extract_cam_suffix(cam_cfg: dict):
 
 
 def _hhmmss_to_seconds(hhmmss: str):
+    """Convertit une chaîne "HHMMSS" en secondes depuis minuit (None si format invalide)."""
     if not hhmmss or len(hhmmss) != 6 or not hhmmss.isdigit():
         return None
     h = int(hhmmss[0:2])
@@ -135,6 +151,12 @@ def _hhmmss_to_seconds(hhmmss: str):
 
 
 def _find_preferred_local_video(project_root: Path, cam_id: str, cam_cfg: dict, prefer_date: str, prefer_time: str):
+    """Cherche l'enregistrement local le plus pertinent pour la caméra.
+
+    Essaie d'abord le fichier correspondant exactement à la date et l'heure
+    préférées, puis, à défaut, le fichier du même jour dont l'heure est la plus
+    proche. Renvoie le chemin absolu, ou None si aucun fichier ne convient.
+    """
     rec_dir = project_root / "recordings" / "recordings"
     if not rec_dir.is_dir():
         return None
@@ -144,13 +166,13 @@ def _find_preferred_local_video(project_root: Path, cam_id: str, cam_cfg: dict, 
     if cam_num is None or cam_suffix is None:
         return None
 
-    # 1) Exact match: Camera_x_2.x_YYYYMMDD_HHMMSS
+    # 1) Correspondance exacte : Camera_x_2.x_AAAAMMJJ_HHMMSS
     for ext in VIDEO_EXTENSIONS:
         p = rec_dir / f"Camera_{cam_num}_{cam_suffix}_{prefer_date}_{prefer_time}{ext}"
         if p.is_file():
             return str(p.resolve())
 
-    # 2) Same date fallback with closest HHMMSS
+    # 2) Repli : fichiers du même jour, tri par heure la plus proche
     same_day = []
     pattern = str(rec_dir / f"Camera_{cam_num}_{cam_suffix}_{prefer_date}_*")
     for p in glob.glob(pattern):
@@ -195,6 +217,12 @@ def build_source_candidates(
     prefer_date: str,
     prefer_time: str,
 ):
+    """Construit la liste ordonnée des sources vidéo candidates pour la caméra.
+
+    Ordre par défaut : URL RTSP, enregistrement local préféré, source de
+    calibration déclarée dans config.yaml, puis video_path. Le mode --source
+    (rtsp/video) réordonne la liste ; les doublons sont supprimés.
+    """
     project_root = config_path.parent.parent
     candidates = []
 
@@ -223,7 +251,7 @@ def build_source_candidates(
     if raw_video_path:
         candidates.append(resolve_video_source(raw_video_path, config_path))
 
-    # Reorder by source mode preference.
+    # Réordonner selon le mode de source demandé (RTSP ou fichiers en premier).
     if source_mode == "rtsp":
         ordered = [c for c in candidates if "://" in c] + [c for c in candidates if "://" not in c]
     elif source_mode == "video":
@@ -244,6 +272,10 @@ def build_source_candidates(
 
 
 def open_first_working_source(candidates):
+    """Ouvre la première source de la liste qui fournit une frame lisible.
+
+    Renvoie (source, VideoCapture) ou (None, None) si aucune source ne fonctionne.
+    """
     for src in candidates:
         is_local_file = "://" not in src
         cap = cv2.VideoCapture(src, cv2.CAP_FFMPEG) if is_local_file else cv2.VideoCapture(src)
@@ -267,6 +299,12 @@ def open_first_working_source(candidates):
 
 
 def resolve_zone(config: dict, cam_id: str, zone_arg: str):
+    """Sélectionne la zone interdite à projeter pour la caméra.
+
+    Avec un identifiant explicite, la zone doit exister et être renseignée.
+    En mode 'auto', prend la zone dont cameras_concernees liste la caméra
+    (avertit et garde la première s'il y en a plusieurs).
+    """
     zones = config.get("zones_interdites", {})
 
     if zone_arg != "auto":
@@ -306,6 +344,8 @@ def resolve_zone(config: dict, cam_id: str, zone_arg: str):
 
 
 def resolve_zones(config: dict, cam_id: str, zone_arg: str):
+    """Renvoie la liste des zones à projeter : toutes les zones compatibles
+    avec la caméra si --zone all, sinon la zone unique choisie par resolve_zone()."""
     zones = config.get("zones_interdites", {})
 
     if zone_arg in {"all", "*"}:
@@ -331,6 +371,13 @@ def resolve_zones(config: dict, cam_id: str, zone_arg: str):
 
 
 def select_homography(config: dict, cam_id: str, effective_res):
+    """Choisit la matrice d'homographie adaptée à la résolution réelle de la frame.
+
+    Priorité à la matrice (HD ou substream) dont la résolution de calibration
+    correspond exactement ; sinon conversion depuis la résolution calibrée la
+    plus proche ; en dernier recours, repli sur la matrice substream puis HD.
+    Renvoie (matrice, nom, est_HD, données de calibration de la caméra).
+    """
     hom = config.get("homographie", {})
     cam_data = hom.get(cam_id, {}) if isinstance(hom.get(cam_id, {}), dict) else {}
 
@@ -348,7 +395,7 @@ def select_homography(config: dict, cam_id: str, effective_res):
     if matrix_sub and _res_matches(effective_res, sub_res):
         return np.array(matrix_sub, dtype=np.float32), f"{cam_id}_matrix", False, cam_data
 
-    # Si pas de match exact, convertir depuis la resolution la plus proche.
+    # Si pas de correspondance exacte, convertir depuis la résolution la plus proche.
     candidates = []
     if matrix_hd and hd_res:
         candidates.append((
@@ -394,6 +441,13 @@ def select_homography(config: dict, cam_id: str, effective_res):
 
 
 def get_display_src_points(calib_data: dict, use_hd_matrix: bool):
+    """Renvoie les points de calibration à dessiner sur la frame, exprimés dans
+    le référentiel de la matrice utilisée (HD ou substream).
+
+    Gère les deux formats de calibration : le format actuel (src_points_px_hd,
+    écrit par calibration_tool_v2) et l'ancien format (src_points_px, écrit par
+    legacy/calibration_tool_v1).
+    """
     if not calib_data:
         return None
 
@@ -401,12 +455,15 @@ def get_display_src_points(calib_data: dict, use_hd_matrix: bool):
         pts_hd = calib_data.get("src_points_px_hd")
         if pts_hd:
             return np.array(pts_hd, dtype=np.int32)
+        # Compatibilité legacy : src_points_px est l'ancien format écrit par
+        # calibration_tool_v1 (une seule matrice, points cliqués en substream).
         pts_legacy = calib_data.get("src_points_px")
         if pts_legacy:
             return np.array(pts_legacy, dtype=np.int32)
         return None
 
-    # Matrice substream: utiliser points legacy si présents, sinon conversion HD -> substream.
+    # Matrice substream : utiliser les points legacy (ancien format de
+    # calibration_tool_v1) s'ils sont présents, sinon convertir HD -> substream.
     pts_legacy = calib_data.get("src_points_px")
     if pts_legacy:
         return np.array(pts_legacy, dtype=np.int32)
@@ -424,6 +481,9 @@ def get_display_src_points(calib_data: dict, use_hd_matrix: bool):
 
 
 def main():
+    """Point d'entrée : ouvre la source vidéo de la caméra, projette les zones
+    interdites (mètres -> pixels) via l'homographie inverse, affiche un
+    diagnostic de reprojection puis la vidéo annotée (touche 'q' pour quitter)."""
     parser = argparse.ArgumentParser(description="Vérification visuelle de la calibration")
     parser.add_argument(
         "--config",
@@ -444,7 +504,7 @@ def main():
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
-    # --- Ouverture vidéo ---
+    # --- Ouverture vidéo : construire les sources candidates puis prendre la première lisible ---
     if args.camera not in config.get("cameras", {}):
         sys.exit(f"ERREUR: Camera '{args.camera}' inconnue dans config.yaml.")
 
@@ -504,6 +564,7 @@ def main():
     except np.linalg.LinAlgError:
         sys.exit(f"ERREUR: Matrice {matrix_name} non inversible.")
 
+    # Projeter une fois pour toutes chaque zone (mètres) vers les pixels caméra.
     projected_zones = []
     for zone_id, zone_data in zones_to_draw:
         coords_metres = zone_data["coordonnees_metres"]
@@ -513,6 +574,8 @@ def main():
         print(f"Points projetés en pixels ({zone_id}) :\n{pixels_cam.reshape(-1, 2)}")
 
     # --- Diagnostic : reprojection des points de calibration ---
+    # Mesure l'erreur aller (px -> m) et retour (m -> px) sur les points cliqués
+    # lors de la calibration, pour juger la qualité de l'homographie.
     src_pts_for_diag = get_display_src_points(calib_data, use_hd_matrix)
     dst_pts_m = calib_data.get("dst_points_metres") if isinstance(calib_data, dict) else None
     if src_pts_for_diag is not None and dst_pts_m:
@@ -562,6 +625,7 @@ def main():
     while True:
         ret, frame = cap.read()
         if not ret:
+            # Fin de fichier : reboucler la vidéo depuis le début.
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             continue
 

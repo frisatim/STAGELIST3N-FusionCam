@@ -1,3 +1,20 @@
+"""Agrégation des runs Phase 4 en un CSV de santé.
+
+Ce script balaie les dossiers de runs correspondant à un motif glob et produit
+une ligne de synthèse par run dans un CSV unique. Deux types de runs sont
+reconnus automatiquement :
+
+- run de benchmark d'alertes (présence d'un ``alert_latency.csv``) : résumé des
+  latences de livraison par transport ;
+- run de campagne live Phase 3 (présence de ``phase3/summary.csv`` et
+  ``phase3/sync_events.csv``) : bilan de santé complet (cadence, latences,
+  fusion, décrochages caméras) enrichi des paramètres du ``manifest.json``.
+
+Exemple::
+
+    python Phase_4_Network_Latency/analyze_phase4_runs.py --runs-glob "Phase_4_Network_Latency/runs/*"
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -8,12 +25,17 @@ import statistics
 import sys
 from pathlib import Path
 
+# Le script est lancé directement (et non comme module du paquet) : on ajoute
+# la racine du dépôt au sys.path pour que l'import absolu
+# "Phase_4_Network_Latency.latency_metrics" fonctionne quel que soit le
+# répertoire courant d'exécution.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from Phase_4_Network_Latency.latency_metrics import summarize_phase3_run
 
 
 def percentile(values: list[float], pct: float) -> float:
+    """Retourne le percentile ``pct`` (0 à 100) par la méthode du rang le plus proche, 0.0 si vide."""
     if not values:
         return 0.0
     ordered = sorted(values)
@@ -22,6 +44,7 @@ def percentile(values: list[float], pct: float) -> float:
 
 
 def _read_manifest(run_dir: Path) -> dict:
+    """Lit le ``manifest.json`` d'un run (paramètres de capture), ou un dictionnaire vide s'il est absent."""
     manifest_path = run_dir / "manifest.json"
     if not manifest_path.exists():
         return {}
@@ -29,6 +52,13 @@ def _read_manifest(run_dir: Path) -> dict:
 
 
 def _summarize_alert_latency(run_dir: Path) -> dict[str, str | int | float] | None:
+    """Résume un run de benchmark d'alertes à partir de son ``alert_latency.csv``.
+
+    Retourne une ligne de synthèse (transport, nombre d'événements, latences
+    moyenne/médiane/p95/max en ms) ou None si le CSV est absent, auquel cas le
+    run est traité comme une campagne Phase 3. Les lignes dont la latence est
+    illisible sont ignorées.
+    """
     csv_path = run_dir / "alert_latency.csv"
     if not csv_path.exists():
         return None
@@ -58,15 +88,24 @@ def _summarize_alert_latency(run_dir: Path) -> dict[str, str | int | float] | No
 
 
 def analyze_runs(run_dirs: list[Path], expected_cameras: list[str] | None = None) -> list[dict[str, str | int | float]]:
+    """Produit une ligne de synthèse par dossier de run.
+
+    Chaque dossier est d'abord testé comme run de benchmark d'alertes
+    (``alert_latency.csv``), sinon comme campagne Phase 3 (bilan
+    :func:`summarize_phase3_run` enrichi du manifeste). Les fichiers simples et
+    les dossiers sans CSV exploitables sont ignorés.
+    """
     rows: list[dict[str, str | int | float]] = []
     for run_dir in run_dirs:
         if run_dir.is_file():
             continue
+        # Cas 1 : run de benchmark de livraison d'alertes.
         alert_summary = _summarize_alert_latency(run_dir)
         if alert_summary:
             rows.append(alert_summary)
             continue
 
+        # Cas 2 : campagne live Phase 3 (les deux CSV sont requis).
         summary_path = run_dir / "phase3" / "summary.csv"
         sync_path = run_dir / "phase3" / "sync_events.csv"
         if not summary_path.exists() or not sync_path.exists():
@@ -111,6 +150,12 @@ def analyze_runs(run_dirs: list[Path], expected_cameras: list[str] | None = None
 
 
 def write_rows(rows: list[dict[str, str | int | float]], out_csv: Path) -> None:
+    """Écrit les lignes de synthèse dans le CSV de sortie.
+
+    L'en-tête est l'union triée des champs de toutes les lignes (les deux types
+    de runs n'ont pas les mêmes colonnes), avec ``run_dir`` remis en première
+    position ; les cellules absentes restent vides.
+    """
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     if rows:
         fields = sorted({field for row in rows for field in row.keys()})
@@ -127,18 +172,29 @@ def write_rows(rows: list[dict[str, str | int | float]], out_csv: Path) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Summarize Phase 4/Phase 3 campaign health.")
+    """Analyse les options de la ligne de commande de l'agrégateur."""
+    parser = argparse.ArgumentParser(description="Synthèse de santé des campagnes Phase 4 / Phase 3.")
     parser.add_argument(
         "--runs-glob",
         default="Phase_3_Fusion_MultiCam/reports/campaign_zone1_live_*",
-        help="Glob matching campaign directories.",
+        help="Motif glob des dossiers de runs à agréger.",
     )
-    parser.add_argument("--out-csv", type=Path, default=Path("Phase_4_Network_Latency/phase4_run_health.csv"))
-    parser.add_argument("--cameras", default="cam_02,cam_03,cam_05,cam_07")
+    parser.add_argument(
+        "--out-csv",
+        type=Path,
+        default=Path("Phase_4_Network_Latency/phase4_run_health.csv"),
+        help="Chemin du CSV de synthèse (une ligne par run).",
+    )
+    parser.add_argument(
+        "--cameras",
+        default="cam_02,cam_03,cam_05,cam_07",
+        help="Caméras attendues, séparées par des virgules (les absentes sont comptées comme décrochées).",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
+    """Point d'entrée : résout le glob, analyse chaque run et écrit le CSV de synthèse."""
     args = parse_args()
     run_dirs = sorted(Path(path) for path in glob.glob(args.runs_glob))
     cameras = [part.strip() for part in args.cameras.split(",") if part.strip()]

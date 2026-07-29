@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
-"""Generate presentation-ready Phase 3 / Phase 4 figures from local CSV results.
+"""Génère les figures de présentation Phase 3 / Phase 4 à partir des CSV locaux.
 
-The script intentionally uses only the Python standard library plus matplotlib
-and numpy so it can run in the lightweight WSL Python environment used during
-analysis.
+Figures produites (PNG écrits dans docs/figures/phase3_phase4_20260707/) :
+  01 : latence interne par étape (pc_latency_internal_2cam_trace.csv)
+  02 : latence de transport des métadonnées
+       (Phase_4_Network_Latency/runs/*/alert_latency.csv)
+  03 : montée en charge 1/2/4 caméras (server_relay_runs/*/phase3/summary.csv)
+  04-05 : alertes par type et objets weak/confirmed (.../phase3/alerts.csv)
+  06-07 : scores et faux positifs Phase 2 vs Phase 3
+          (comparison_phase2_phase3.csv de la campagne enregistrée
+          campaign_zone1_20260707_220155)
+
+Le script n'utilise volontairement que la bibliothèque standard, matplotlib et
+numpy, afin de tourner dans l'environnement Python WSL léger utilisé pour
+l'analyse.
 """
 
 from __future__ import annotations
@@ -44,6 +54,7 @@ GRAY = "#5c6670"
 
 
 def read_rows(path: Path) -> list[dict[str, str]]:
+    """Lit un CSV en liste de dictionnaires (liste vide si le fichier est absent)."""
     if not path.exists():
         return []
     with path.open(newline="", encoding="utf-8-sig") as fp:
@@ -51,6 +62,7 @@ def read_rows(path: Path) -> list[dict[str, str]]:
 
 
 def to_float(value: str | None) -> float | None:
+    """Convertit une chaîne en float, ou None si elle est vide ou invalide."""
     if value is None or value == "":
         return None
     try:
@@ -60,6 +72,7 @@ def to_float(value: str | None) -> float | None:
 
 
 def percentile(values: list[float], q: float) -> float:
+    """Percentile q (entre 0 et 1) par interpolation linéaire (NaN si liste vide)."""
     if not values:
         return float("nan")
     ordered = sorted(values)
@@ -72,6 +85,7 @@ def percentile(values: list[float], q: float) -> float:
 
 
 def numeric_column(path: Path, column: str) -> list[float]:
+    """Extrait les valeurs numériques valides d'une colonne d'un CSV."""
     rows = read_rows(path)
     values: list[float] = []
     for row in rows:
@@ -82,6 +96,7 @@ def numeric_column(path: Path, column: str) -> list[float]:
 
 
 def first_existing(paths: list[Path]) -> Path | None:
+    """Renvoie le premier chemin existant de la liste, ou None."""
     for path in paths:
         if path.exists():
             return path
@@ -89,6 +104,7 @@ def first_existing(paths: list[Path]) -> Path | None:
 
 
 def savefig(name: str) -> None:
+    """Enregistre la figure matplotlib courante dans OUT_DIR (créé au besoin) puis la ferme."""
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     path = OUT_DIR / name
     plt.savefig(path, dpi=180, bbox_inches="tight")
@@ -97,12 +113,14 @@ def savefig(name: str) -> None:
 
 
 def style_axes(ax: plt.Axes, grid_axis: str = "y") -> None:
+    """Applique le style commun : grille légère, bordures haut/droite masquées."""
     ax.grid(True, axis=grid_axis, alpha=0.28)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
 
 def annotate_bars(ax: plt.Axes, bars, fmt: str = "{:.2f}", pad: float = 3.0) -> None:
+    """Écrit la valeur au-dessus de chaque barre non nulle du diagramme."""
     for bar in bars:
         height = bar.get_height()
         if np.isnan(height) or height == 0:
@@ -120,6 +138,8 @@ def annotate_bars(ax: plt.Axes, bars, fmt: str = "{:.2f}", pad: float = 3.0) -> 
 
 
 def figure_latency_by_step() -> None:
+    """Figure 01 : latence interne moyenne et P95 par étape du pipeline
+    (Phase 3 live 2 caméras), en échelle logarithmique."""
     trace_path = first_existing(
         [
             WORKSPACE_ROOT
@@ -178,6 +198,7 @@ def figure_latency_by_step() -> None:
 
 
 def summarize_latency_file(path: Path) -> tuple[int, float, float, float, float] | None:
+    """Résume un CSV de latences : (effectif, moyenne, médiane, P95, max), ou None si vide."""
     values = numeric_column(path, "latency_ms")
     if not values:
         return None
@@ -191,6 +212,8 @@ def summarize_latency_file(path: Path) -> tuple[int, float, float, float, float]
 
 
 def figure_transport_latency() -> None:
+    """Figure 02 : latence moyenne et P95 du transport des métadonnées en Phase 4
+    (queue interne, HTTP POST, WebSocket, MQTT QoS0/QoS1)."""
     candidates = {
         "Queue": [
             WORKSPACE_ROOT / "Phase_4_Network_Latency" / "runs" / "today_queue" / "alert_latency.csv",
@@ -253,6 +276,7 @@ def figure_transport_latency() -> None:
 
 
 def load_summary(path: Path) -> dict[str, float | str] | None:
+    """Charge la première ligne d'un summary.csv en dictionnaire (float si possible)."""
     rows = read_rows(path)
     if not rows:
         return None
@@ -265,6 +289,9 @@ def load_summary(path: Path) -> dict[str, float | str] | None:
 
 
 def figure_camera_scaling() -> None:
+    """Figure 03 : montée en charge serveur à 1, 2 et 4 caméras : latence
+    (moyenne et P95), FPS de campagne et activité IA/fusion (détections,
+    liens de fusion, alertes)."""
     configs = [
         (
             "1 cam",
@@ -346,6 +373,7 @@ def figure_camera_scaling() -> None:
 
 
 def count_alerts(path: Path) -> Counter[tuple[str, str]]:
+    """Compte les alertes d'un alerts.csv par couple (type, niveau)."""
     counts: Counter[tuple[str, str]] = Counter()
     for row in read_rows(path):
         alert_type = row.get("alert_type") or "?"
@@ -355,6 +383,8 @@ def count_alerts(path: Path) -> Counter[tuple[str, str]]:
 
 
 def figure_alerts_by_type() -> None:
+    """Figure 04 : alertes empilées par type et niveau (zone/personne confirmée,
+    objet weak, objet confirmé) pour les runs serveur et la campagne enregistrée."""
     runs = [
         (
             "Server 2 cams",
@@ -409,6 +439,8 @@ def figure_alerts_by_type() -> None:
 
 
 def figure_object_weak_confirmed() -> None:
+    """Figure 05 : alertes objets interdits weak vs confirmed, avant et après
+    l'introduction de la fusion class-aware."""
     runs = [
         (
             "Server\n2 cams, 5 min\n(pré-class-aware)",
@@ -457,6 +489,8 @@ def figure_object_weak_confirmed() -> None:
 
 
 def group_comparison() -> dict[tuple[str, str], dict[str, float]]:
+    """Agrège comparison_phase2_phase3.csv par couple (phase, tâche) :
+    moyenne par caméra des métriques (précision, rappel, F1, FP, FAR, FPS, latence)."""
     path = RECORDED_CAMPAIGN_DIR / "comparison_phase2_phase3.csv"
     rows = read_rows(path)
     grouped: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
@@ -474,6 +508,8 @@ def group_comparison() -> dict[tuple[str, str], dict[str, float]]:
 
 
 def figure_phase2_phase3_scores() -> None:
+    """Figure 06 : précision, rappel et F1 moyens Phase 2 vs Phase 3 pour les
+    tâches TAD (objets) et TRD (personnes)."""
     grouped = group_comparison()
     order = [
         ("phase2", "tad", "P2 TAD"),
@@ -509,6 +545,8 @@ def figure_phase2_phase3_scores() -> None:
 
 
 def figure_false_positives() -> None:
+    """Figure 07 : faux positifs moyens par caméra (uniquement les runs avec
+    vérité terrain), en échelle logarithmique."""
     grouped = group_comparison()
     order = [
         ("phase2", "tad", "P2 TAD"),
@@ -541,6 +579,7 @@ def figure_false_positives() -> None:
 
 
 def main() -> None:
+    """Applique le style matplotlib commun puis génère les sept figures."""
     plt.rcParams.update(
         {
             "font.size": 10,

@@ -206,7 +206,7 @@ def main():
         print(f"       Seules les zones interdites sont affichees.")
 
     # --- Affichage ---
-    window_name = "Plan de sol — Machines + Zones (Q pour quitter)"
+    window_name = "Plan de sol : Machines + Zones (Q pour quitter)"
 
     if args.save:
         cv2.imwrite(args.save, plan)

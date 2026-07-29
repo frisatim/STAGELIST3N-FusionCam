@@ -1,11 +1,24 @@
 """
-Audit calibration quality from Phase 3 alert logs.
+Audit de la qualité de calibration à partir des logs d'alertes Phase 3.
 
-The script parses pipeline console logs containing lines like:
+Le script analyse les logs console du pipeline, qui contiennent des lignes
+de la forme :
   [ALERT] Alert[abcd1234] zone_violation_person zone=zone_2 gid=1 pos=(5.23m,13.21m) cams=cam_04+cam_01 conf=0.93
 
-It checks each alert position against the forbidden-zone polygons from config.yaml,
-adds nearest-zone distance and per-camera calibration error metadata, and writes a CSV.
+Pour chaque alerte, il vérifie que la position estimée au sol tombe bien dans
+les polygones de zones interdites du config.yaml, calcule la distance à la
+zone la plus proche et joint les erreurs de calibration (moyenne et maximale,
+en cm) des caméras impliquées. Le résultat est écrit en CSV et résumé en
+console : une violation de zone déclarée hors de son polygone signale une
+homographie douteuse ou une zone mal tracée.
+
+Place dans le pipeline : lancé automatiquement par les campagnes
+(run_recorded_campaign.py et run_live_campaign.py via run_audit) sur le log
+de chaque run Phase 3 ; utilisable aussi à la main sur n'importe quel log.
+
+Exemples :
+  python audit_calibration_alerts.py --log reports/campagne/logs/phase3_v2_pt.txt
+  python audit_calibration_alerts.py --log run.log --config config.yaml --out reports/audit.csv
 """
 
 from __future__ import annotations
@@ -23,6 +36,9 @@ import numpy as np
 import yaml
 
 
+# Motif des lignes [ALERT] émises par le pipeline : identifiant, type,
+# niveau optionnel, zone déclarée optionnelle, global_id, position au sol en
+# mètres, caméras contributrices (séparées par +) et confiance.
 ALERT_RE = re.compile(
     r"Alert\[(?P<alert_id>[^\]]+)\]\s+"
     r"(?P<alert_type>\w+)"
@@ -36,11 +52,16 @@ ALERT_RE = re.compile(
 
 
 def load_config(path: Path) -> dict[str, Any]:
+    """Charge le config.yaml Phase 3 (zones interdites, homographies)."""
     with path.open("r", encoding="utf-8") as fh:
         return yaml.safe_load(fh)
 
 
 def load_zones(config: dict[str, Any]) -> dict[str, np.ndarray]:
+    """Extrait les polygones des zones interdites, en mètres, au format OpenCV.
+
+    Les zones de moins de trois sommets sont ignorées (polygone dégénéré).
+    """
     zones: dict[str, np.ndarray] = {}
     for zone_id, zone_data in config.get("zones_interdites", {}).items():
         coords = zone_data.get("coordonnees_metres") or []
@@ -51,6 +72,11 @@ def load_zones(config: dict[str, Any]) -> dict[str, np.ndarray]:
 
 
 def calibration_errors(config: dict[str, Any]) -> dict[str, tuple[float | None, float | None]]:
+    """Lit les erreurs de calibration par caméra depuis la section homographie.
+
+    Retourne cam_id -> (erreur moyenne en cm, erreur maximale en cm), None
+    quand la valeur n'est pas renseignée dans le config.yaml.
+    """
     errors: dict[str, tuple[float | None, float | None]] = {}
     for cam_id, data in config.get("homographie", {}).items():
         if not isinstance(data, dict):
@@ -65,6 +91,7 @@ def calibration_errors(config: dict[str, Any]) -> dict[str, tuple[float | None, 
 
 
 def point_in_zone(point: tuple[float, float], polygon: np.ndarray) -> bool:
+    """Vrai si le point (en mètres) est à l'intérieur ou sur le bord du polygone."""
     return cv2.pointPolygonTest(polygon, point, measureDist=False) >= 0
 
 
@@ -73,6 +100,11 @@ def distance_point_to_segment(
     a: tuple[float, float],
     b: tuple[float, float],
 ) -> float:
+    """Distance euclidienne du point p au segment [a, b].
+
+    Projette p sur la droite (a, b), borne la projection au segment, puis
+    mesure la distance au point projeté. Si a == b, distance au point a.
+    """
     px, py = p
     ax, ay = a
     bx, by = b
@@ -88,9 +120,11 @@ def distance_point_to_segment(
 
 
 def distance_to_polygon(point: tuple[float, float], polygon: np.ndarray) -> float:
+    """Distance du point au polygone : 0 s'il est dedans, sinon distance au bord le plus proche."""
     pts = polygon.reshape((-1, 2)).astype(float)
     if point_in_zone(point, polygon):
         return 0.0
+    # Point extérieur : minimum des distances à chaque arête du polygone.
     distances = []
     for i in range(len(pts)):
         a = (float(pts[i][0]), float(pts[i][1]))
@@ -100,6 +134,11 @@ def distance_to_polygon(point: tuple[float, float], polygon: np.ndarray) -> floa
 
 
 def parse_alerts(log_text: str) -> list[dict[str, Any]]:
+    """Extrait les alertes du texte de log, une ligne [ALERT] par entrée.
+
+    Les lignes qui ne correspondent pas au motif ALERT_RE sont ignorées.
+    Chaque alerte conserve son numéro de ligne et la ligne brute pour audit.
+    """
     rows: list[dict[str, Any]] = []
     for line_no, line in enumerate(log_text.splitlines(), start=1):
         match = ALERT_RE.search(line)
@@ -129,6 +168,14 @@ def audit_rows(
     zones: dict[str, np.ndarray],
     cam_errors: dict[str, tuple[float | None, float | None]],
 ) -> list[dict[str, Any]]:
+    """Enrichit chaque alerte avec les vérifications géométriques et de calibration.
+
+    Ajoute par alerte : les zones contenant la position, la cohérence entre
+    zone déclarée et zones effectives (expected_zone_ok, pertinente pour les
+    violations de zone par une personne), la zone la plus proche et sa
+    distance, ainsi que la pire erreur de calibration parmi les caméras
+    contributrices.
+    """
     audited: list[dict[str, Any]] = []
     for alert in alerts:
         point = (alert["x_m"], alert["y_m"])
@@ -140,12 +187,16 @@ def audit_rows(
         nearest_zone = min(distances, key=distances.get) if distances else ""
         nearest_distance = distances.get(nearest_zone, float("nan")) if nearest_zone else float("nan")
 
+        # Cohérence zone déclarée / position : seule une violation de zone
+        # par une personne doit obligatoirement tomber dans sa zone déclarée.
         declared_zone = alert["declared_zone"]
         if alert["alert_type"] == "zone_violation_person":
             expected_ok = bool(declared_zone and declared_zone in inside)
         else:
             expected_ok = True
 
+        # On retient l'erreur de calibration la plus défavorable parmi les
+        # caméras ayant contribué à l'alerte.
         camera_mean_errors = []
         camera_max_errors = []
         for cam_id in alert["cameras"]:
@@ -176,6 +227,7 @@ def audit_rows(
 
 
 def write_csv(rows: list[dict[str, Any]], out_path: Path) -> None:
+    """Écrit le CSV d'audit avec un ordre de colonnes fixe (dossier créé au besoin)."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "line_no",
@@ -207,6 +259,12 @@ def print_summary(
     rows: list[dict[str, Any]],
     cam_errors: dict[str, tuple[float | None, float | None]],
 ) -> None:
+    """Affiche le résumé console : totaux par type, incohérences de zone, bilan par caméra.
+
+    Les alertes de type violation de zone par une personne dont la position
+    tombe hors de la zone déclarée sont listées comme exemples suspects
+    (10 premières), car elles pointent vers un défaut de calibration.
+    """
     print(f"[INFO] Alertes analysées : {len(rows)}")
     if not rows:
         return
@@ -220,6 +278,8 @@ def print_summary(
     ]
     print(f"[INFO] Violations personne hors zone déclarée : {len(bad_zone)}")
 
+    # Regroupement par caméra contributrice pour croiser volume d'alertes,
+    # positions hors zone et erreurs de calibration connues.
     by_cam: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         for cam_id in str(row["cameras"]).split("+"):
@@ -249,15 +309,30 @@ def print_summary(
 
 
 def main() -> None:
+    """Point d'entrée : analyse le log, audite les alertes, écrit le CSV et le résumé."""
     parser = argparse.ArgumentParser(
-        description="Audit Phase 3 alert positions against forbidden-zone polygons."
+        description="Audit Phase 3 alert positions against forbidden-zone polygons.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exemples :
+  python audit_calibration_alerts.py --log reports/campagne/logs/phase3_v2_pt.txt
+  python audit_calibration_alerts.py --log run.log --config config.yaml --out reports/audit.csv
+""",
     )
-    parser.add_argument("--log", required=True, help="Text file containing pipeline logs.")
-    parser.add_argument("--config", default="config.yaml", help="Phase 3 config.yaml path.")
+    parser.add_argument(
+        "--log",
+        required=True,
+        help="Fichier texte contenant les logs du pipeline (lignes [ALERT]). Obligatoire.",
+    )
+    parser.add_argument(
+        "--config",
+        default="config.yaml",
+        help="Chemin du config.yaml Phase 3 (zones interdites, homographies). Défaut : config.yaml du dossier courant.",
+    )
     parser.add_argument(
         "--out",
         default="reports/calibration_alert_audit.csv",
-        help="CSV output path.",
+        help="Chemin du CSV de sortie. Défaut : reports/calibration_alert_audit.csv.",
     )
     args = parser.parse_args()
 

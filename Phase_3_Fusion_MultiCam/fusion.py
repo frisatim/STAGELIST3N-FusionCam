@@ -1,9 +1,32 @@
 """
-Multi-camera fusion module for Phase 3 industrial surveillance system.
+Module de fusion multi-caméras du système de surveillance industriel (Phase 3).
 
-Associates detections across overlapping camera pairs using spatial
-proximity (Hungarian algorithm) and propagates stable global IDs via
-a Union-Find structure with path compression.
+Place dans le pipeline : après le suivi mono-caméra (tracker.py), ce module
+associe les détections vues simultanément par plusieurs caméras dont les
+champs de vision se recouvrent, afin d'attribuer à chaque entité physique un
+identifiant global unique et stable dans le temps. Ces identifiants globaux
+alimentent ensuite la détection de violations (violation_detector.py).
+
+Principe :
+  1. Pour chaque paire de caméras en recouvrement (déclarée dans config.yaml,
+     salle par salle), un algorithme hongrois apparie les détections selon
+     leur distance au sol en mètres.
+  2. Les appariements retenus sont fusionnés dans une structure Union-Find
+     avec compression de chemin : chaque composante connexe représente une
+     même entité physique vue par une ou plusieurs caméras.
+  3. Chaque composante reçoit un identifiant global persistant d'une frame à
+     l'autre (l'identifiant le plus ancien de la composante est conservé).
+
+L'association est volontairement limitée aux paires en recouvrement d'une
+même salle : deux caméras sans recouvrement physique ne peuvent pas observer
+la même personne, et restreindre les paires évite de fusionner à tort deux
+entités situées à des coordonnées sol proches mais dans des salles
+différentes.
+
+Depuis le correctif "class-aware", deux détections ne sont appariables que si
+leurs classes sont compatibles : sans cette contrainte, une personne et un
+objet posé à ses pieds pouvaient partager un identifiant global, ce qui
+polluait le vote multi-caméras et générait des faux positifs.
 """
 
 from __future__ import annotations
@@ -16,11 +39,26 @@ from scipy.optimize import linear_sum_assignment
 
 from detection import Detection
 
+# Clé unique d'une piste locale : (cam_id, track_id, classe canonique)
 TrackKey = tuple[str, int, str]
+# Coût sentinelle : rend un appariement inéligible sans casser l'algorithme hongrois
 INVALID_COST = 1e6
 
 
 class MultiCameraFusion:
+    """Associe les détections inter-caméras et gère les identifiants globaux.
+
+    Args:
+        config: Dictionnaire issu de config.yaml (section camera_overlaps).
+        distance_threshold_m: Distance au sol maximale (en mètres) pour
+            apparier deux détections de caméras différentes.
+        time_window_s: Écart temporel maximal (en secondes) entre deux
+            détections pour qu'elles restent appariables.
+        require_class_match: Si True, seules des détections de classes
+            compatibles peuvent être associées (correctif class-aware,
+            voir la docstring de module).
+    """
+
     def __init__(
         self,
         config: dict,
@@ -33,10 +71,10 @@ class MultiCameraFusion:
         self._require_class_match = require_class_match
         self._overlap_pairs: list[tuple[str, str]] = self._load_overlap_pairs(config)
 
-        # Union-Find parent map keyed on (cam_id, track_id, canonical_class)
+        # Table des parents Union-Find, indexée par (cam_id, track_id, classe canonique)
         self._parent: dict[TrackKey, TrackKey] = {}
 
-        # Persistent global ID registry: survives across associate() calls
+        # Registre persistant des identifiants globaux : survit d'un appel associate() à l'autre
         self._track_to_global: dict[TrackKey, int] = {}
         self._next_global_id: int = 1
 
@@ -49,42 +87,43 @@ class MultiCameraFusion:
         )
 
     # ------------------------------------------------------------------
-    # Public interface
+    # Interface publique
     # ------------------------------------------------------------------
 
     def associate(
         self, detections_by_cam: dict[str, list[Detection]]
     ) -> list[Detection]:
-        """Associate detections across overlapping camera pairs.
+        """Associe les détections des paires de caméras en recouvrement.
 
         Args:
-            detections_by_cam: Mapping from camera ID to list of detections
-                               for the current frame batch.
+            detections_by_cam: Dictionnaire caméra vers liste des détections
+                               du lot de frames courant.
 
         Returns:
-            Flat list of all detections with global_id populated.
+            Liste à plat de toutes les détections, avec global_id renseigné.
         """
         all_dets: list[Detection] = [
             det for dets in detections_by_cam.values() for det in dets
         ]
 
-        # Seed Union-Find with every node present this frame
+        # Initialise l'Union-Find avec tous les noeuds présents sur cette frame
         self._parent = {}
         for det in all_dets:
             key = self._detection_key(det)
             if key not in self._parent:
                 self._parent[key] = key
 
-        # Step 1: run Hungarian association for each overlap pair
+        # Étape 1 : association hongroise pour chaque paire de caméras en recouvrement
         for cam_a, cam_b in self._overlap_pairs:
             dets_a = detections_by_cam.get(cam_a, [])
             dets_b = detections_by_cam.get(cam_b, [])
 
-            # Skip pairs where at least one camera has no detections
+            # Ignore les paires dont au moins une caméra n'a aucune détection
             if not dets_a or not dets_b:
                 continue
 
-            # Only consider detections that have a floor position
+            # Ne garde que les détections disposant d'une position au sol :
+            # sans projection en mètres, aucune distance inter-caméras n'est calculable
             valid_a = [d for d in dets_a if d.foot_point_m is not None]
             valid_b = [d for d in dets_b if d.foot_point_m is not None]
 
@@ -94,6 +133,9 @@ class MultiCameraFusion:
             C = self._build_cost_matrix(valid_a, valid_b)
             row_inds, col_inds = linear_sum_assignment(C)
 
+            # Seuls les appariements sous le seuil de distance fusionnent :
+            # les coûts sentinelles (classes incompatibles, hors fenêtre
+            # temporelle) sont éliminés au passage
             for r, c in zip(row_inds, col_inds):
                 if C[r, c] < self._distance_threshold_m:
                     self._union(
@@ -101,27 +143,30 @@ class MultiCameraFusion:
                         self._detection_key(valid_b[c]),
                     )
 
-        # Step 2: gather components and assign / propagate global IDs
+        # Étape 2 : regroupe les composantes connexes et attribue / propage
+        # les identifiants globaux
         components: dict[TrackKey, list[TrackKey]] = {}
         for key in self._parent:
             root = self._find(key)
             components.setdefault(root, []).append(key)
 
         for members in components.values():
-            # Collect any already-known global IDs for members of this component
+            # Récupère les identifiants globaux déjà connus des membres de la composante
             existing_ids = [
                 self._track_to_global[m] for m in members if m in self._track_to_global
             ]
-            # Oldest (smallest) ID wins — most stable across time
+            # L'identifiant le plus ancien (le plus petit) gagne : c'est le
+            # plus stable dans le temps
             gid = min(existing_ids) if existing_ids else self._allocate_global_id()
             for m in members:
                 self._track_to_global[m] = gid
 
-        # Step 3: detections without floor position also get a persistent global ID
+        # Étape 3 : les détections sans position au sol reçoivent aussi un
+        # identifiant global persistant
         for det in all_dets:
             key = self._detection_key(det)
             if key not in self._track_to_global:
-                # Node was not reachable through Union-Find (foot_point_m is None)
+                # Noeud jamais atteint par l'Union-Find (foot_point_m est None)
                 self._track_to_global[key] = self._allocate_global_id()
 
             det.global_id = self._track_to_global[key]
@@ -129,18 +174,23 @@ class MultiCameraFusion:
         return all_dets
 
     def reset(self) -> None:
-        """Clear persistent tracking state between video sessions."""
+        """Réinitialise l'état de suivi persistant entre deux sessions vidéo."""
         self._parent.clear()
         self._track_to_global.clear()
         self._next_global_id = 1
         print("[INFO] MultiCameraFusion state reset.")
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Méthodes internes
     # ------------------------------------------------------------------
 
     def _load_overlap_pairs(self, config: dict) -> list[tuple[str, str]]:
-        """Extract all camera overlap pairs from config, across all rooms."""
+        """Extrait du config toutes les paires de caméras en recouvrement.
+
+        La section camera_overlaps est organisée par salle : seules les
+        paires déclarées y figurent, ce qui borne l'association aux caméras
+        d'une même salle (voir la docstring de module).
+        """
         pairs: list[tuple[str, str]] = []
         overlap_section = config.get("camera_overlaps", {})
         for room_pairs in overlap_section.values():
@@ -148,16 +198,20 @@ class MultiCameraFusion:
                 if len(pair) == 2:
                     pairs.append((pair[0], pair[1]))
                 else:
+                    # Paire mal formée dans le YAML : ignorée plutôt que de planter
                     print(f"[WARN] Malformed overlap pair ignored: {pair}")
         return pairs
 
     def _build_cost_matrix(
         self, dets_a: list[Detection], dets_b: list[Detection]
     ) -> np.ndarray:
-        """Build an (len_a × len_b) cost matrix of floor-plane distances.
+        """Construit la matrice de coûts (len_a x len_b) des distances au sol.
 
-        Entries outside the time window are set to 1e6 so the Hungarian
-        algorithm will never choose them as optimal assignments.
+        Chaque coût est la distance euclidienne en mètres entre les points au
+        sol des deux détections. Les paires inéligibles (classes incompatibles
+        ou écart temporel supérieur à la fenêtre) reçoivent le coût sentinelle
+        1e6 : l'algorithme hongrois ne les retiendra jamais comme appariement
+        optimal, et le seuil de distance les écarterait de toute façon.
         """
         n, m = len(dets_a), len(dets_b)
         C = np.empty((n, m), dtype=np.float64)
@@ -174,16 +228,16 @@ class MultiCameraFusion:
         return C
 
     def _find(self, x: TrackKey) -> TrackKey:
-        """Find root with path-compression (one-pass halving)."""
+        """Recherche la racine avec compression de chemin (halving en une passe)."""
         while self._parent[x] != x:
-            # Path compression: skip one level
+            # Compression de chemin : rattache x à son grand-parent à chaque itération
             self._parent[x] = self._parent[self._parent[x]]
             x = self._parent[x]
         return x
 
     def _union(self, a: TrackKey, b: TrackKey) -> None:
-        """Merge the components containing a and b."""
-        # Nodes from detections without floor position may not be in parent
+        """Fusionne les composantes contenant a et b."""
+        # Les noeuds issus de détections sans position au sol peuvent être absents de la table
         for node in (a, b):
             if node not in self._parent:
                 self._parent[node] = node
@@ -191,16 +245,26 @@ class MultiCameraFusion:
         root_a = self._find(a)
         root_b = self._find(b)
         if root_a != root_b:
-            # Attach root_b under root_a (no rank — small number of cameras)
+            # Rattache root_b sous root_a (pas d'union par rang : le nombre
+            # de caméras reste faible, l'arbre reste court)
             self._parent[root_b] = root_a
 
     def _detection_key(self, det: Detection) -> TrackKey:
+        """Clé Union-Find d'une détection : (caméra, piste locale, classe canonique)."""
         return (det.cam_id, det.track_id, self._class_key(det))
 
     def _classes_compatible(self, a: Detection, b: Detection) -> bool:
+        """Vrai si les deux détections partagent la même classe canonique."""
         return self._class_key(a) == self._class_key(b)
 
     def _class_key(self, det: Detection) -> str:
+        """Normalise le nom de classe en une clé canonique.
+
+        Supprime accents, casse et underscores, puis rabat les synonymes de
+        "personne" (français / anglais, singulier / pluriel) sur la clé unique
+        "person". Garantit que la compatibilité de classes ne dépend ni de la
+        langue ni du modèle de détection utilisé.
+        """
         raw = det.class_name or str(det.class_id)
         normalized = unicodedata.normalize("NFKD", raw)
         ascii_name = normalized.encode("ascii", "ignore").decode("ascii")
@@ -210,14 +274,14 @@ class MultiCameraFusion:
         return key or str(det.class_id)
 
     def _allocate_global_id(self) -> int:
-        """Return the next available global ID and advance the counter."""
+        """Retourne le prochain identifiant global libre et avance le compteur."""
         gid = self._next_global_id
         self._next_global_id += 1
         return gid
 
 
 # ----------------------------------------------------------------------
-# Smoke test
+# Test rapide (smoke test)
 # ----------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -250,7 +314,7 @@ if __name__ == "__main__":
         timestamp=t + 0.03,
         bbox_px=(200.0, 210.0, 280.0, 410.0),
         foot_point_px=(240.0, 410.0),
-        foot_point_m=(5.1, 2.05),   # close to det_cam03_1 → should merge
+        foot_point_m=(5.1, 2.05),   # proche de det_cam03_1 : doit fusionner
         confidence=0.88,
         class_id=0,
         class_name="person",
@@ -262,7 +326,7 @@ if __name__ == "__main__":
         timestamp=t,
         bbox_px=(400.0, 210.0, 480.0, 410.0),
         foot_point_px=(440.0, 410.0),
-        foot_point_m=(8.0, 0.5),   # far from cam_03 detections → different ID
+        foot_point_m=(8.0, 0.5),   # loin des détections de cam_03 : identifiant distinct
         confidence=0.75,
         class_id=0,
         class_name="person",
@@ -274,7 +338,7 @@ if __name__ == "__main__":
         timestamp=t,
         bbox_px=(50.0, 50.0, 100.0, 200.0),
         foot_point_px=(75.0, 200.0),
-        foot_point_m=None,          # no homography → unique ID
+        foot_point_m=None,          # pas d'homographie : identifiant propre
         confidence=0.60,
         class_id=0,
         class_name="person",
@@ -288,11 +352,11 @@ if __name__ == "__main__":
         }
     )
 
-    print(f"\n[INFO] Frame 1 — {len(result)} detections after fusion:")
+    print(f"\n[INFO] Frame 1 : {len(result)} detections after fusion:")
     for d in result:
         print(f"  {d}")
 
-    # cam_03:1 and cam_07:1 should share the same global_id
+    # cam_03:1 et cam_07:1 doivent partager le même global_id
     assert det_cam03_1.global_id == det_cam07_1.global_id, (
         f"[ERR] Expected cam_03:1 and cam_07:1 to share a global_id, "
         f"got {det_cam03_1.global_id} vs {det_cam07_1.global_id}"
@@ -304,7 +368,7 @@ if __name__ == "__main__":
         "[ERR] Detection without floor point should still get a global_id"
     )
 
-    # Second frame: same physical person, IDs must be stable
+    # Deuxième frame : même personne physique, les identifiants doivent rester stables
     det_cam03_1b = Detection(
         cam_id="cam_03",
         track_id=1,
@@ -334,7 +398,7 @@ if __name__ == "__main__":
         {"cam_03": [det_cam03_1b], "cam_07": [det_cam07_1b]}
     )
 
-    print(f"\n[INFO] Frame 2 — {len(result2)} detections after fusion:")
+    print(f"\n[INFO] Frame 2 : {len(result2)} detections after fusion:")
     for d in result2:
         print(f"  {d}")
 

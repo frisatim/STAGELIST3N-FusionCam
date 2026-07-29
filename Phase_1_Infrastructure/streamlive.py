@@ -478,7 +478,7 @@ def mode_record(max_duration: float = 0, camera_ids: list[str] | None = None):
     # Vérifier GPU si demandé
     if USE_GPU:
         if check_nvenc_available():
-            print("  [OK] NVENC (GPU) détecté — encodage matériel activé.")
+            print("  [OK] NVENC (GPU) détecté : encodage matériel activé.")
         else:
             print("  [ERREUR] NVENC non disponible ! Vérifier drivers NVIDIA + FFmpeg.")
             print("           Fallback sur CPU (mp4v)...")

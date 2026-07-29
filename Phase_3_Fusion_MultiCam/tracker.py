@@ -1,6 +1,10 @@
 """
 Module de suivi par caméra avec ByteTrack (Étape 3.2).
 
+Place dans le pipeline : premier maillon de la Phase 3. Chaque caméra possède
+son CameraTracker ; les détections produites (avec position au sol en mètres)
+sont ensuite associées entre caméras par fusion.py.
+
 CameraTracker encapsule :
   - Le chargement du modèle YOLO/RT-DETR
   - Le correctif ratio d'aspect Dahua (geometry_fix)
@@ -40,7 +44,7 @@ from detection import Detection
 from geometry_fix import fix_frame, load_aspect_fix
 
 
-# Chemin du config ByteTrack relatif à ce fichier
+# Chemin de la configuration ByteTrack, relatif à ce fichier
 _BYTETRACK_CFG = str(Path(__file__).parent / "bytetrack.yaml")
 
 
@@ -48,13 +52,13 @@ class CameraTracker:
     """Tracker mono-caméra : détection YOLO/RT-DETR + suivi ByteTrack + projection sol.
 
     Attributes:
-        cam_id: Identifiant caméra (e.g. "cam_03").
+        cam_id: Identifiant caméra (ex. "cam_03").
         model: Instance Ultralytics YOLO/RT-DETR chargée.
         homography: Matrice 3x3 numpy float32 (pixels → mètres), ou None.
-        ar_fix: Configuration correctif ratio d'aspect.
+        ar_fix: Configuration du correctif ratio d'aspect.
         room_id: Salle à laquelle appartient la caméra.
-        conf_threshold: Seuil de confiance minimum pour filtrer les résultats.
-        target_classes: Liste d'indices de classes à tracker. [0] = person uniquement.
+        conf_threshold: Seuil de confiance minimal pour filtrer les résultats.
+        target_classes: Liste d'indices de classes à suivre. [0] = personnes uniquement.
     """
 
     def __init__(
@@ -66,15 +70,18 @@ class CameraTracker:
         target_classes: list[int] | None = None,
         device: str | None = None,
     ) -> None:
-        """Initialize the camera tracker.
+        """Initialise le tracker de la caméra.
 
         Args:
-            cam_id: Camera identifier matching config.yaml key (e.g. "cam_03").
-            model_path: Path to .pt or .engine model file.
-            config: Parsed config.yaml dict.
-            conf_threshold: Minimum confidence to keep a detection.
-            target_classes: COCO class indices to track. None tracks all classes.
-                           Use [0] for persons only.
+            cam_id: Identifiant caméra correspondant à la clé de config.yaml
+                    (ex. "cam_03").
+            model_path: Chemin du fichier modèle .pt ou .engine.
+            config: Dictionnaire issu du parsing de config.yaml.
+            conf_threshold: Confiance minimale pour conserver une détection.
+            target_classes: Indices de classes COCO à suivre. None suit toutes
+                           les classes. Utiliser [0] pour les personnes seules.
+            device: Périphérique d'inférence ("cuda:0", "cpu", ...). None
+                    reprend la valeur du config (detection.device).
         """
         self.cam_id = cam_id
         self.model_path = model_path
@@ -90,7 +97,7 @@ class CameraTracker:
         # -- Charger le modèle --
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"[ERR] Modèle introuvable : {model_path}")
-        print(f"[INFO] {cam_id} — Chargement modèle : {model_path}")
+        print(f"[INFO] {cam_id} : Chargement modèle : {model_path}")
         self.model = self._load_model()
 
         # -- Correctif ratio d'aspect --
@@ -100,7 +107,7 @@ class CameraTracker:
         self.homography: Optional[np.ndarray] = None
         self._load_homography(config)
 
-        # -- Room ID --
+        # -- Identifiant de salle (room) --
         cam_cfg = config.get("cameras", {}).get(cam_id, {})
         self.room_id: str | None = cam_cfg.get("room", None)
 
@@ -119,27 +126,31 @@ class CameraTracker:
         return YOLO(self.model_path, task="detect")
 
     def _reset_model_after_track_error(self, exc: Exception) -> None:
-        """Reset Ultralytics/ByteTrack state after a tracker-internal failure."""
+        """Réinitialise l'état Ultralytics/ByteTrack après un échec interne du tracker.
+
+        Au troisième échec consécutif, la caméra est désactivée : mieux vaut
+        perdre une caméra que bloquer tout le pipeline multi-caméras.
+        """
         self._track_failures += 1
         if self._track_failures >= 3:
             self._disabled_after_failures = True
             print(
-                f"[ERR] {self.cam_id} — ByteTrack désactivé pour ce modèle après "
+                f"[ERR] {self.cam_id} : ByteTrack désactivé pour ce modèle après "
                 f"{self._track_failures} échecs consécutifs "
                 f"({type(exc).__name__}: {exc})."
             )
             return
         print(
-            f"[WARN] {self.cam_id} — ByteTrack/Ultralytics a échoué "
+            f"[WARN] {self.cam_id} : ByteTrack/Ultralytics a échoué "
             f"({type(exc).__name__}: {exc}); modèle rechargé et frame ignorée."
         )
         self.model = self._load_model()
 
     def _load_homography(self, config: dict) -> None:
-        """Load homography matrix from config for this camera.
+        """Charge la matrice d'homographie de cette caméra depuis le config.
 
-        Tries the nested format first (config['homographie'][cam_id]['matrix']),
-        then falls back to the flat format (config['homographie'][cam_id + '_matrix']).
+        Essaie d'abord le format imbriqué (config['homographie'][cam_id]['matrix']),
+        puis se rabat sur le format plat (config['homographie'][cam_id + '_matrix']).
         """
         homo_section = config.get("homographie", {})
 
@@ -149,7 +160,7 @@ class CameraTracker:
             matrix = cam_entry.get("matrix", None)
             if matrix:
                 self.homography = np.array(matrix, dtype=np.float32)
-                print(f"[INFO] {self.cam_id} — Homographie chargée (format imbriqué)")
+                print(f"[INFO] {self.cam_id} : Homographie chargée (format imbriqué)")
                 return
 
         # Format plat : homographie > cam_03_matrix
@@ -159,10 +170,10 @@ class CameraTracker:
             arr = np.array(matrix, dtype=np.float32)
             if arr.size > 0:
                 self.homography = arr
-                print(f"[INFO] {self.cam_id} — Homographie chargée (format plat)")
+                print(f"[INFO] {self.cam_id} : Homographie chargée (format plat)")
                 return
 
-        print(f"[WARN] {self.cam_id} — Pas d'homographie dans config.yaml. "
+        print(f"[WARN] {self.cam_id} : Pas d'homographie dans config.yaml. "
               f"foot_point_m sera None jusqu'à calibration.")
 
     # ------------------------------------------------------------------
@@ -172,20 +183,20 @@ class CameraTracker:
     def process_frame(
         self, frame: np.ndarray, timestamp: float | None = None
     ) -> list[Detection]:
-        """Process one frame and return a list of tracked detections.
+        """Traite une frame et retourne la liste des détections suivies.
 
-        Pipeline :
-          1. fix_frame() — correctif ratio d'aspect
-          2. model.track(persist=True) — détection + ByteTrack
+        Enchaînement :
+          1. fix_frame() : correctif ratio d'aspect
+          2. model.track(persist=True) : détection + ByteTrack
           3. Pour chaque résultat : extraire bbox, foot_point, projeter en mètres
           4. Créer et retourner des objets Detection
 
         Args:
-            frame: Raw frame from cv2.VideoCapture.read() (BGR, HxWxC).
-            timestamp: Frame timestamp in seconds. Defaults to time.time().
+            frame: Frame brute issue de cv2.VideoCapture.read() (BGR, HxWxC).
+            timestamp: Horodatage de la frame en secondes. time.time() par défaut.
 
         Returns:
-            List of Detection objects. Empty list if no detections.
+            Liste d'objets Detection. Liste vide si aucune détection.
         """
         if self._disabled_after_failures:
             return []
@@ -193,10 +204,12 @@ class CameraTracker:
         if timestamp is None:
             timestamp = time.time()
 
-        # 1. Correctif ratio d'aspect — OBLIGATOIRE avant toute inférence
+        # 1. Correctif ratio d'aspect : OBLIGATOIRE avant toute inférence.
+        # L'homographie a été calibrée sur l'image corrigée ; détecter ou
+        # projeter sur l'image déformée fausserait toutes les positions au sol.
         frame = fix_frame(frame, self.cam_id, self.ar_fix)
 
-        # 2. Tracking ByteTrack
+        # 2. Suivi ByteTrack (persist=True conserve l'état du tracker entre frames)
         track_kwargs = {
             "persist": True,
             "tracker": _BYTETRACK_CFG,
@@ -227,7 +240,7 @@ class CameraTracker:
 
         boxes = result.boxes
 
-        # Pas de track_ids disponibles (premiere frame ou ByteTrack non initialisé)
+        # Pas de track_ids disponibles (première frame ou ByteTrack non initialisé)
         if boxes.id is None:
             return detections
 
@@ -245,13 +258,17 @@ class CameraTracker:
             x1, y1, x2, y2 = boxes.xyxy[i].tolist()
             bbox_px = (float(x1), float(y1), float(x2), float(y2))
             if not self._is_valid_bbox(bbox_px):
-                print(f"[WARN] {self.cam_id} — bbox invalide ignorée: {bbox_px}")
+                print(f"[WARN] {self.cam_id} : bbox invalide ignorée: {bbox_px}")
                 continue
             if not np.isfinite(conf):
-                print(f"[WARN] {self.cam_id} — confidence invalide ignorée: {conf}")
+                print(f"[WARN] {self.cam_id} : confidence invalide ignorée: {conf}")
                 continue
 
-            # Foot point = bas-centre de la bbox (point de contact avec le sol)
+            # Foot point = bas-centre de la bbox, approximation du point de
+            # contact avec le sol. C'est le seul point de la boîte censé être
+            # sur le plan du sol : l'homographie n'est valable que pour les
+            # points de ce plan, projeter le centre de la bbox (à mi-hauteur
+            # du corps) donnerait une position en mètres aberrante.
             foot_u = (x1 + x2) / 2.0
             foot_v = float(y2)
             foot_point_px = (foot_u, foot_v)
@@ -283,14 +300,14 @@ class CameraTracker:
     def _project_to_metres(
         self, u: float, v: float
     ) -> tuple[float, float] | None:
-        """Project a pixel point to floor coordinates in metres via homography.
+        """Projette un point pixel en coordonnées sol (mètres) via l'homographie.
 
         Args:
-            u: Pixel x coordinate (after aspect-ratio fix).
-            v: Pixel y coordinate (after aspect-ratio fix).
+            u: Coordonnée x en pixels (après correctif ratio d'aspect).
+            v: Coordonnée y en pixels (après correctif ratio d'aspect).
 
         Returns:
-            (x_m, y_m) floor coordinates in metres, or None if no homography.
+            Coordonnées sol (x_m, y_m) en mètres, ou None sans homographie.
         """
         if self.homography is None:
             return None
@@ -323,18 +340,18 @@ class CameraTracker:
         detections: list[Detection],
         show_metres: bool = True,
     ) -> np.ndarray:
-        """Draw bounding boxes and labels on a frame (for visualization).
+        """Dessine les boîtes englobantes et leurs labels sur une frame (visualisation).
 
         IMPORTANT : frame doit DÉJÀ avoir subi fix_frame() (même frame que celle
         passée à process_frame). Ne pas appeler fix_frame() une seconde fois ici.
 
         Args:
-            frame: Aspect-ratio-corrected frame.
-            detections: List of Detection objects from process_frame().
-            show_metres: If True, display floor coordinates in metres on bbox.
+            frame: Frame déjà corrigée en ratio d'aspect.
+            detections: Liste d'objets Detection issus de process_frame().
+            show_metres: Si True, affiche les coordonnées sol en mètres sur la bbox.
 
         Returns:
-            Frame with drawn annotations (BGR).
+            Frame annotée (BGR).
         """
         vis = frame.copy()
         for det in detections:
@@ -367,7 +384,7 @@ class CameraTracker:
 # ----------------------------------------------------------------------
 
 def _id_to_color(track_id: int) -> tuple[int, int, int]:
-    """Map a track_id to a reproducible BGR color."""
+    """Associe à un track_id une couleur BGR reproductible."""
     np.random.seed(track_id * 97 + 13)
     return tuple(int(c) for c in np.random.randint(80, 255, 3))  # type: ignore[return-value]
 
@@ -379,7 +396,7 @@ def _draw_label(
     y: int,
     color: tuple[int, int, int],
 ) -> None:
-    """Draw a filled background label above a bounding box."""
+    """Dessine un label sur fond plein au-dessus d'une boîte englobante."""
     font = cv2.FONT_HERSHEY_SIMPLEX
     scale, thick = 0.45, 1
     (tw, th), baseline = cv2.getTextSize(text, font, scale, thick)
@@ -395,7 +412,7 @@ def _draw_label(
 if __name__ == "__main__":
     import sys
 
-    print("[INFO] Smoke test CameraTracker — chargement config + vérification homographie")
+    print("[INFO] Smoke test CameraTracker : chargement config + vérification homographie")
 
     config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
     with open(config_path) as f:
@@ -431,6 +448,6 @@ if __name__ == "__main__":
         pt_m = tracker._project_to_metres(140.0, 400.0)
         print(f"[INFO] Projection (140px, 400px) → {pt_m} m")
     else:
-        print("[WARN] Pas d'homographie disponible pour cam_03 — calibrer d'abord.")
+        print("[WARN] Pas d'homographie disponible pour cam_03 : calibrer d'abord.")
 
     print("[INFO] Smoke test OK")

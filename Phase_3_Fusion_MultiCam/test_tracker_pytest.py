@@ -1,8 +1,8 @@
-"""Pytest checks for the Phase 3 CameraTracker.
+"""Tests Pytest du CameraTracker (Phase 3).
 
-These tests keep the existing manual script visual_check_tracker.py untouched.
-They mock Ultralytics so pytest can validate the tracker wiring without
-loading a YOLO model, CUDA, or video files.
+Ultralytics est remplacé par un faux YOLO : on valide ainsi le câblage du
+tracker (ByteTrack, construction des Detection, reprise sur erreur) sans
+charger de modèle, de CUDA ni de fichiers vidéo.
 """
 
 from __future__ import annotations
@@ -97,6 +97,7 @@ def _config():
 
 
 def test_camera_tracker_uses_bytetrack_yaml_and_builds_detection(tmp_path, monkeypatch):
+    """Une sortie YOLO suivie doit produire une Detection complète (ids, bbox, point pied, salle) et le suivi doit être configuré via bytetrack.yaml."""
     tracker_module = _import_tracker_with_fake_yolo(monkeypatch)
     model_path = tmp_path / "model.pt"
     model_path.write_text("fake model")
@@ -133,6 +134,7 @@ def test_camera_tracker_uses_bytetrack_yaml_and_builds_detection(tmp_path, monke
 
 
 def test_each_camera_tracker_gets_its_own_yolo_instance(tmp_path, monkeypatch):
+    """Chaque caméra doit avoir sa propre instance YOLO pour ne pas mélanger les états de suivi entre caméras."""
     tracker_module = _import_tracker_with_fake_yolo(monkeypatch)
     model_path = tmp_path / "model.pt"
     model_path.write_text("fake model")
@@ -145,6 +147,7 @@ def test_each_camera_tracker_gets_its_own_yolo_instance(tmp_path, monkeypatch):
 
 
 def test_camera_tracker_passes_explicit_gpu_device(tmp_path, monkeypatch):
+    """Le périphérique demandé (ex. cuda:0) doit être transmis tel quel à l'appel de suivi YOLO."""
     tracker_module = _import_tracker_with_fake_yolo(monkeypatch)
     model_path = tmp_path / "model.pt"
     model_path.write_text("fake model")
@@ -164,6 +167,7 @@ def test_camera_tracker_passes_explicit_gpu_device(tmp_path, monkeypatch):
 
 
 def test_camera_tracker_filters_invalid_nan_bbox(tmp_path, monkeypatch):
+    """Une bbox invalide (NaN) doit être filtrée au lieu de polluer le reste du pipeline."""
     tracker_module = _import_tracker_with_fake_yolo(monkeypatch)
     model_path = tmp_path / "model.pt"
     model_path.write_text("fake model")
@@ -192,6 +196,7 @@ def test_camera_tracker_filters_invalid_nan_bbox(tmp_path, monkeypatch):
 
 
 def test_camera_tracker_recovers_when_bytetrack_raises(tmp_path, monkeypatch):
+    """Si ByteTrack lève une exception, le tracker doit recréer son modèle et continuer sans planter la campagne."""
     tracker_module = _import_tracker_with_fake_yolo(monkeypatch)
     model_path = tmp_path / "model.pt"
     model_path.write_text("fake model")

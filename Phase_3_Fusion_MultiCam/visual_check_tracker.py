@@ -41,7 +41,7 @@ from tracker import CameraTracker, _id_to_color
 # ----------------------------------------------------------------------
 
 def load_floor_plan(config: dict) -> np.ndarray | None:
-    """Load the floor plan image for trajectory visualization."""
+    """Charge l'image du plan de sol pour la visualisation des trajectoires."""
     plan_path = Path(__file__).parent / config.get("geometrie_2d", {}).get("plan_image", "plan_rdc.png")
     if not plan_path.exists():
         print(f"[WARN] Plan de sol introuvable : {plan_path}")
@@ -55,7 +55,7 @@ def load_floor_plan(config: dict) -> np.ndarray | None:
 def metres_to_plan_px(
     x_m: float, y_m: float, config: dict
 ) -> tuple[int, int]:
-    """Convert floor coordinates in metres to pixel coordinates on the floor plan image."""
+    """Convertit des coordonnées sol en mètres en pixels sur l'image du plan de sol."""
     geo = config.get("geometrie_2d", {})
     scale = geo.get("echelle_px_par_metre", 42.3)
     ox = geo.get("origine_pixel_x", 82)
@@ -70,7 +70,7 @@ def metres_to_plan_px(
 # ----------------------------------------------------------------------
 
 def draw_forbidden_zones(plan: np.ndarray, config: dict) -> np.ndarray:
-    """Draw forbidden zones (in metres) on the floor plan image."""
+    """Dessine les zones interdites (définies en mètres) sur l'image du plan de sol."""
     plan_vis = plan.copy()
     geo = config.get("geometrie_2d", {})
     scale = geo.get("echelle_px_par_metre", 42.3)
@@ -114,7 +114,8 @@ def run(
     show_window: bool = True,
     device: str | None = None,
 ) -> None:
-    """Run tracker on a recorded video and display results."""
+    """Exécute le tracker sur une vidéo enregistrée et affiche les résultats
+    (vidéo annotée, plan de sol avec trajectoires, sauvegarde optionnelle)."""
 
     # -- Tracker --
     tracker = CameraTracker(
@@ -222,9 +223,9 @@ def run(
 
         # -- Affichage --
         if show_window:
-            cv2.imshow(f"Tracker — {cam_id}", vis_frame)
+            cv2.imshow(f"Tracker - {cam_id}", vis_frame)
             if plan_base is not None:
-                cv2.imshow(f"Plan de sol — {cam_id}", plan_vis)
+                cv2.imshow(f"Plan de sol - {cam_id}", plan_vis)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 print("[INFO] Arrêt sur touche 'q'")
                 break
@@ -257,6 +258,7 @@ def run(
 # ----------------------------------------------------------------------
 
 def main() -> None:
+    """Analyse les arguments, résout le modèle et la vidéo, puis lance run()."""
     parser = argparse.ArgumentParser(
         description="Test du tracker mono-caméra avec ByteTrack"
     )

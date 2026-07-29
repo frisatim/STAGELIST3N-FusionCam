@@ -1,3 +1,43 @@
+"""Dashboard web local de la Phase 4 : alertes temps réel et superposition des métadonnées IA.
+
+Ce module démarre un serveur HTTP local (ThreadingHTTPServer) qui expose :
+
+- ``GET /``                : la page HTML du dashboard (HTML/JS embarqués dans INDEX_HTML) ;
+- ``GET /events``          : flux SSE (Server-Sent Events) des alertes ;
+- ``GET /metadata-events`` : flux SSE des enveloppes de métadonnées complètes ;
+- ``GET /metadata/latest`` : dernière enveloppe de métadonnées reçue (JSON) ;
+- ``GET /zones.json``      : zones interdites projetées en pixels, par caméra ;
+- ``GET /debug.json``      : compteurs internes (clients SSE, POST reçus, etc.) ;
+- ``POST /alerts``         : réception d'une alerte isolée ;
+- ``POST /metadata``       : réception d'une enveloppe de métadonnées Phase 3.
+
+Le producteur (pipeline Phase 3) pousse ses métadonnées en HTTP POST ; le
+navigateur les reçoit via SSE et dessine boîtes englobantes et zones interdites
+au-dessus de la vidéo. Le dashboard estime aussi la latence de bout en bout
+visible (retard vidéo, chemin IA, livraison HTTP, retard de superposition).
+
+Lancement typique::
+
+    python Phase_4_Network_Latency/alert_dashboard.py --host 127.0.0.1 --port 8765
+    python Phase_4_Network_Latency/alert_dashboard.py --simulate --rate-hz 2
+
+Puis ouvrir http://127.0.0.1:8765 dans un navigateur. La page accepte des
+paramètres d'URL, notamment ``video_mode`` qui contrôle le rendu vidéo :
+
+- ``none``   : pas de vidéo, seulement les métadonnées (défaut sans ``video_base``) ;
+- ``iframe`` : intègre le lecteur web de MediaMTX/WebRTC
+  (ex. ``?video_base=http://HOTE:8889&video_mode=iframe``) ;
+- ``hls``    : lit un flux HLS ``index.m3u8`` par caméra via hls.js, avec mesure
+  de la latence vidéo et synchronisation automatique de la superposition ;
+- toute autre valeur : balise ``<video>`` directe sur l'URL construite.
+
+Autres paramètres d'URL utiles : ``cameras`` (liste de caméras à afficher),
+``focus`` (caméra affichée en grand), ``overlay_delay_ms`` (retard fixe de la
+superposition), ``sync_mode`` (``delay`` ou ``video``), ``sync_offset_ms``,
+``sync_safety_ms``, ``source_w``/``source_h`` (résolution source des
+coordonnées pixel des métadonnées).
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -13,18 +53,25 @@ from urllib.parse import urlparse
 import yaml
 
 
-CLIENTS: list[queue.Queue[dict]] = []
-METADATA_CLIENTS: list[queue.Queue[dict]] = []
+# État partagé du serveur (le serveur HTTP est multi-threads : chaque structure
+# mutable est protégée par le verrou correspondant).
+CLIENTS: list[queue.Queue[dict]] = []            # abonnés SSE au flux d'alertes (/events)
+METADATA_CLIENTS: list[queue.Queue[dict]] = []   # abonnés SSE au flux de métadonnées (/metadata-events)
 CLIENTS_LOCK = threading.Lock()
 METADATA_CLIENTS_LOCK = threading.Lock()
-ZONES_BY_CAMERA: dict[str, list[dict]] = {}
-LAST_METADATA: dict | None = None
+ZONES_BY_CAMERA: dict[str, list[dict]] = {}      # zones interdites projetées en pixels, servies sur /zones.json
+LAST_METADATA: dict | None = None                # dernière enveloppe reçue, servie sur /metadata/latest
 LAST_METADATA_LOCK = threading.Lock()
 STATS_LOCK = threading.Lock()
-METADATA_POSTS = 0
-ALERT_POSTS = 0
+METADATA_POSTS = 0                               # compteur de POST /metadata reçus (pour /debug.json)
+ALERT_POSTS = 0                                  # compteur d'alertes diffusées (pour /debug.json)
 
 
+# Page HTML/JS du dashboard, servie telle quelle sur GET /.
+# Le JavaScript embarqué gère la grille de caméras (vue focus + vignettes), la
+# lecture vidéo selon video_mode (iframe/HLS/<video>), le dessin des overlays
+# sur canvas, le tampon de synchronisation des métadonnées et les métriques de
+# latence affichées en tête de page.
 INDEX_HTML = """<!doctype html>
 <html lang="en">
 <head>
@@ -794,6 +841,12 @@ INDEX_HTML = """<!doctype html>
 
 
 def _invert_3x3(matrix: list[list[float]]) -> list[list[float]]:
+    """Inverse une matrice 3x3 par la méthode des cofacteurs.
+
+    Utilisée pour inverser l'homographie image -> sol de la Phase 3 afin de
+    projeter les zones (exprimées en mètres) vers les pixels de l'image.
+    Lève ValueError si la matrice est singulière (déterminant quasi nul).
+    """
     a, b, c = matrix[0]
     d, e, f = matrix[1]
     g, h, i = matrix[2]
@@ -813,6 +866,12 @@ def _invert_3x3(matrix: list[list[float]]) -> list[list[float]]:
 
 
 def _homography_for(config: dict, camera_id: str) -> list[list[float]] | None:
+    """Retourne la matrice d'homographie d'une caméra depuis la config YAML Phase 3.
+
+    Deux formats sont acceptés : clé plate ``<camera_id>_matrix`` ou bloc
+    imbriqué ``<camera_id>: {matrix: ...}`` (avec repli sur ``matrix_substream``).
+    Retourne None si aucune matrice n'est trouvée.
+    """
     homographies = config.get("homographie", {})
     matrix = homographies.get(f"{camera_id}_matrix")
     if matrix:
@@ -824,6 +883,12 @@ def _homography_for(config: dict, camera_id: str) -> list[list[float]] | None:
 
 
 def _project_meter_to_pixel(inv_h: list[list[float]], x_m: float, y_m: float) -> list[float] | None:
+    """Projette un point sol (x, y) en mètres vers les coordonnées pixel de l'image.
+
+    Applique l'homographie inverse en coordonnées homogènes puis normalise par w.
+    Retourne ``[u, v]`` arrondi à 2 décimales, ou None si w est quasi nul
+    (point non projetable).
+    """
     u = inv_h[0][0] * x_m + inv_h[0][1] * y_m + inv_h[0][2]
     v = inv_h[1][0] * x_m + inv_h[1][1] * y_m + inv_h[1][2]
     w = inv_h[2][0] * x_m + inv_h[2][1] * y_m + inv_h[2][2]
@@ -833,13 +898,24 @@ def _project_meter_to_pixel(inv_h: list[list[float]], x_m: float, y_m: float) ->
 
 
 def load_zones_by_camera(config_path: Path | None) -> dict[str, list[dict]]:
+    """Charge les zones interdites de la config YAML Phase 3 et les projette en pixels.
+
+    Pour chaque zone (polygone en mètres) et chaque caméra concernée, projette
+    les sommets via l'homographie inverse de la caméra. Les zones sans caméra,
+    avec moins de 3 sommets projetables ou sans homographie sont ignorées.
+
+    Retourne un dictionnaire ``{camera_id: [zone, ...]}`` (identifiant, nom,
+    points en pixels et en mètres), servi tel quel sur ``/zones.json`` pour le
+    dessin côté navigateur. Retourne un dictionnaire vide si aucun chemin n'est
+    fourni.
+    """
     if not config_path:
         return {}
     with config_path.open("r", encoding="utf-8") as fh:
         config = yaml.safe_load(fh) or {}
 
     zones_by_camera: dict[str, list[dict]] = {}
-    inverse_by_camera: dict[str, list[list[float]]] = {}
+    inverse_by_camera: dict[str, list[list[float]]] = {}  # cache des homographies inversées par caméra
     for zone_id, zone_data in (config.get("zones_interdites") or {}).items():
         coords_m = zone_data.get("coordonnees_metres") or []
         cameras = zone_data.get("cameras_concernees") or []
@@ -872,6 +948,12 @@ def load_zones_by_camera(config_path: Path | None) -> dict[str, list[dict]]:
 
 
 def broadcast_alert(alert: dict) -> None:
+    """Horodate une alerte à la réception et la diffuse aux clients SSE de ``/events``.
+
+    Ajoute ``received_epoch_ms`` (horloge du serveur) et ``delivery_latency_ms``
+    (écart entre création côté producteur et réception, borné à 0), puis pousse
+    l'alerte dans la file de chaque client connecté.
+    """
     global ALERT_POSTS
     now_ms = time.time() * 1000.0
     created_ms = float(alert.get("created_epoch_ms", now_ms))
@@ -886,6 +968,13 @@ def broadcast_alert(alert: dict) -> None:
 
 
 def broadcast_metadata(metadata: dict) -> None:
+    """Diffuse une enveloppe de métadonnées Phase 3 aux clients SSE de ``/metadata-events``.
+
+    Horodate l'enveloppe (``received_epoch_ms``, ``delivery_latency_ms``), la
+    mémorise comme dernière enveloppe connue (pour ``/metadata/latest`` et les
+    nouveaux abonnés SSE), la pousse à chaque client connecté, puis relaie
+    individuellement chaque alerte contenue vers :func:`broadcast_alert`.
+    """
     global LAST_METADATA, METADATA_POSTS
     now_ms = time.time() * 1000.0
     created_ms = float(metadata.get("created_epoch_ms", now_ms))
@@ -912,6 +1001,12 @@ def broadcast_metadata(metadata: dict) -> None:
 
 
 def make_simulated_alert(event_id: int) -> dict:
+    """Fabrique une alerte factice pour le mode ``--simulate``.
+
+    Le niveau (confirmed/weak) et le type alternent de façon déterministe selon
+    ``event_id`` ; la caméra est tirée au hasard parmi les quatre caméras de la
+    campagne.
+    """
     return {
         "event_id": event_id,
         "alert_level": "confirmed" if event_id % 5 == 0 else "weak",
@@ -922,6 +1017,13 @@ def make_simulated_alert(event_id: int) -> dict:
 
 
 def make_simulated_metadata(frame_id: int) -> dict:
+    """Fabrique une enveloppe de métadonnées factice au schéma Phase 3.
+
+    Génère des détections animées (une personne par caméra, plus une bouteille
+    sur une caméra sur deux) dont les positions varient avec ``frame_id``, et
+    une alerte de violation de zone toutes les 8 trames. Permet de tester le
+    dashboard sans pipeline Phase 3 en fonctionnement.
+    """
     now_s = time.time()
     cameras = ["cam_02", "cam_03", "cam_05", "cam_07"]
     detections = []
@@ -995,13 +1097,28 @@ def make_simulated_metadata(frame_id: int) -> dict:
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
+    """Gestionnaire HTTP du dashboard : page, flux SSE et points d'entrée POST."""
+
     def handle(self) -> None:
+        """Traite la connexion en ignorant les déconnexions abruptes du client.
+
+        Les fermetures de socket (navigateur qui quitte la page, flux SSE coupé)
+        sont fréquentes et bénignes : elles sont absorbées ici pour ne pas
+        polluer la sortie du serveur.
+        """
         try:
             super().handle()
         except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError, OSError):
             return
 
     def do_GET(self) -> None:
+        """Route les requêtes GET.
+
+        ``/`` sert la page HTML ; ``/zones.json``, ``/metadata/latest`` et
+        ``/debug.json`` servent du JSON ; ``/events`` et ``/metadata-events``
+        ouvrent un flux SSE bloquant qui pousse chaque élément dès réception.
+        Toute autre route répond 404.
+        """
         parsed = urlparse(self.path)
         if parsed.path == "/":
             self.send_response(200)
@@ -1068,6 +1185,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "keep-alive")
             self.end_headers()
+            # Une file dédiée par client : broadcast_alert() y pousse chaque
+            # alerte, la boucle ci-dessous la transmet au format SSE. Le timeout
+            # de 15 s sert à détecter les clients déconnectés.
             channel: queue.Queue[dict] = queue.Queue()
             with CLIENTS_LOCK:
                 CLIENTS.append(channel)
@@ -1091,6 +1211,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "keep-alive")
             self.end_headers()
+            # Même mécanique que /events, avec un amorçage : la dernière
+            # enveloppe connue est envoyée immédiatement au nouvel abonné pour
+            # afficher un état sans attendre la prochaine publication.
             channel: queue.Queue[dict] = queue.Queue()
             with METADATA_CLIENTS_LOCK:
                 METADATA_CLIENTS.append(channel)
@@ -1116,6 +1239,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self) -> None:
+        """Reçoit une alerte (``/alerts``) ou une enveloppe de métadonnées (``/metadata``).
+
+        Le corps est du JSON ; la charge est diffusée aux clients SSE via
+        :func:`broadcast_alert` ou :func:`broadcast_metadata`. Répond 204 en cas
+        de succès, 404 pour toute autre route.
+        """
         parsed = urlparse(self.path)
         if parsed.path not in {"/alerts", "/metadata"}:
             self.send_response(404)
@@ -1131,10 +1260,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, fmt: str, *args) -> None:
+        """Désactive le journal d'accès HTTP (une ligne par requête serait trop verbeux)."""
         return
 
 
 def start_simulator(rate_hz: float) -> None:
+    """Démarre un thread démon qui publie des métadonnées simulées à la cadence donnée.
+
+    Utilisé par ``--simulate`` : chaque itération diffuse une enveloppe produite
+    par :func:`make_simulated_metadata`, espacée de ``1 / rate_hz`` secondes
+    (1 s si la cadence est nulle ou négative).
+    """
     def run() -> None:
         frame_id = 0
         spacing_s = 1.0 / rate_hz if rate_hz > 0 else 1.0
@@ -1147,21 +1283,32 @@ def start_simulator(rate_hz: float) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Local Phase 4 alert dashboard.")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--simulate", action="store_true")
-    parser.add_argument("--rate-hz", type=float, default=2.0)
+    """Analyse les options de la ligne de commande du dashboard."""
+    parser = argparse.ArgumentParser(description="Dashboard local d'alertes de la Phase 4.")
+    parser.add_argument("--host", default="127.0.0.1", help="Adresse d'écoute du serveur HTTP (défaut : 127.0.0.1).")
+    parser.add_argument("--port", type=int, default=8765, help="Port d'écoute du serveur HTTP (défaut : 8765).")
+    parser.add_argument(
+        "--simulate",
+        action="store_true",
+        help="Publie des métadonnées simulées en continu (test du dashboard sans pipeline Phase 3).",
+    )
+    parser.add_argument(
+        "--rate-hz",
+        type=float,
+        default=2.0,
+        help="Cadence de publication du simulateur en Hz (utilisé seulement avec --simulate).",
+    )
     parser.add_argument(
         "--zones-config",
         type=Path,
         default=None,
-        help="Optional Phase 3 YAML config used to draw forbidden zones on the video overlay.",
+        help="Config YAML Phase 3 optionnelle pour dessiner les zones interdites sur la vidéo.",
     )
     return parser.parse_args()
 
 
 def main() -> None:
+    """Point d'entrée : charge les zones, lance le simulateur si demandé, puis sert le dashboard."""
     args = parse_args()
     global ZONES_BY_CAMERA
     if args.zones_config:

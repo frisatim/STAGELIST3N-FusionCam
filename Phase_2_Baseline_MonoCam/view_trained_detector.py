@@ -1,3 +1,28 @@
+"""
+Visualiseur interactif de modèles entraînés (YOLO / RT-DETR) sur vidéo.
+
+Rejoue une vidéo enregistrée en y superposant les détections d'un modèle
+Ultralytics : boîtes englobantes, étiquette classe + confiance, point de
+contact pieds (règle TRD) et zone interdite de la caméra si disponible
+(zones_config.json prioritaire, sinon config YAML Phase 3). Sert à
+inspecter visuellement le comportement d'un poids entraîné, frame par
+frame, avant/après une campagne d'évaluation.
+
+Navigation (fenêtre OpenCV) :
+  Espace         : pause / lecture
+  Flèches G/D    : recule / avance d'une frame (met en pause)
+  Trackbar       : saut direct à une frame
+  Q ou Echap     : quitter
+
+Usage :
+  python view_trained_detector.py --source chemin/video.mp4
+  python view_trained_detector.py --source dossier_videos/ --model chemin/best.pt
+  python view_trained_detector.py --source video.mp4 --camera cam_07 --conf 0.5
+
+Si --source est un dossier, un menu console propose de choisir la vidéo.
+Le défaut de --model pointe les poids V2 (Modelstrained/V2/yolo11s) :
+adapter au besoin.
+"""
 
 import argparse
 from collections import OrderedDict
@@ -24,6 +49,7 @@ KEY_RIGHT_WIN = 2555904
 
 
 def detect_device() -> tuple[str, bool]:
+    """Retourne (device, cuda_disponible) : GPU CUDA si présent, sinon CPU."""
     if torch.cuda.is_available():
         gpu_name = torch.cuda.get_device_name(0)
         vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
@@ -35,6 +61,7 @@ def detect_device() -> tuple[str, bool]:
 
 
 def parse_classes(value: str | None) -> list[int] | None:
+    """Parse la liste d'IDs de classes '0,39,41' de la CLI (None = toutes)."""
     if not value:
         return None
     out = []
@@ -46,6 +73,7 @@ def parse_classes(value: str | None) -> list[int] | None:
 
 
 def list_videos(source: Path) -> list[Path]:
+    """Liste les vidéos exploitables : fichier unique ou contenu d'un dossier."""
     if source.is_file() and source.suffix.lower() in VIDEO_EXTENSIONS:
         return [source]
 
@@ -57,6 +85,7 @@ def list_videos(source: Path) -> list[Path]:
 
 
 def choose_video(videos: list[Path]) -> Path | None:
+    """Fait choisir une vidéo au clavier si plusieurs candidates (0 = quitter)."""
     if not videos:
         return None
     if len(videos) == 1:
@@ -88,12 +117,14 @@ class FrameCache:
         self._maxsize = maxsize
 
     def get(self, idx: int):
+        """Retourne l'entrée du cache pour cette frame (None si absente)."""
         if idx in self._cache:
             self._cache.move_to_end(idx)
             return self._cache[idx]
         return None
 
     def put(self, idx: int, value):
+        """Insère une entrée et évince la plus ancienne si le cache est plein."""
         if idx in self._cache:
             self._cache.move_to_end(idx)
         self._cache[idx] = value
@@ -102,6 +133,7 @@ class FrameCache:
 
 
 def load_model(model_path: Path, model_type: str):
+    """Instancie YOLO ou RT-DETR ; en 'auto', le type est déduit du nom du poids."""
     model_type = model_type.lower().strip()
     if model_type == "auto":
         if "rtdetr" in model_path.stem.lower():
@@ -122,6 +154,17 @@ def load_model(model_path: Path, model_type: str):
 def load_zone_polygon(camera_id: str,
                       zones_json_path: Path,
                       config_path: Path):
+    """Charge le polygone de zone d'une caméra (None si introuvable).
+
+    Ordre de recherche :
+      1. zones_config.json (format Phase 2) ;
+      2. config YAML : cameras[].forbidden_zone_pixels ;
+      3. config YAML : homographie.<cam>.src_points_px (format Phase 3).
+
+    Note : numpy est importé via __import__("numpy") au lieu d'un import en
+    tête de fichier ; c'est inhabituel mais fonctionnel, conservé en l'état
+    pour ne pas modifier le comportement.
+    """
     # Priorite : zones_config.json (Phase_2)
     if zones_json_path.exists():
         try:
@@ -176,6 +219,12 @@ def load_zone_polygon(camera_id: str,
 def run_predict(model, frame, conf: float, classes: list[int] | None,
                 device: str, imgsz: int, use_half: bool,
                 zone_polygon=None):
+    """Inférence sur une frame et rendu des annotations.
+
+    Retourne (frame_annotée, durée_inférence_ms, nb_boîtes). Dessine la zone
+    interdite (orange), les boîtes avec classe + confiance et le point pieds
+    bas-centre (même convention que la règle TRD).
+    """
     t0 = time.monotonic()
     results = model.predict(
         frame,
@@ -227,6 +276,11 @@ def run_predict(model, frame, conf: float, classes: list[int] | None,
 
 def draw_hud(frame, frame_idx: int, total_frames: int, fps: float,
              infer_ms: float, n_boxes: int, paused: bool):
+    """Ajoute sous la frame un panneau HUD : position, FPS, inférence, aide.
+
+    Note : ici aussi numpy est appelé via __import__("numpy") ; conservé tel
+    quel (voir load_zone_polygon).
+    """
     h, w = frame.shape[:2]
     panel_h = 68
     panel = cv2.rectangle(
@@ -260,6 +314,8 @@ def draw_hud(frame, frame_idx: int, total_frames: int, fps: float,
 
 
 def main():
+    """Point d'entrée : CLI, chargements, puis boucle interactive de lecture."""
+    # Défauts : poids V2 yolo11s (adapter via --model) et config Phase 3.
     default_model = (
         Path(__file__).resolve().parent
         / "Modelstrained"
@@ -297,6 +353,7 @@ def main():
                         help=f"Config YAML contenant forbidden_zone_pixels (defaut: {default_config})")
     args = parser.parse_args()
 
+    # Validation des entrées : poids puis source vidéo.
     model_path = Path(args.model).resolve()
     if not model_path.exists():
         print(f"[ERREUR] Modele introuvable: {model_path}")
@@ -308,11 +365,13 @@ def main():
         print(f"[ERREUR] Aucune video valide trouvee dans: {source_path}")
         sys.exit(1)
 
+    # Sélection interactive si un dossier contient plusieurs vidéos.
     video_path = choose_video(videos)
     if video_path is None:
         print("Arret utilisateur.")
         return
 
+    # Filtre de classes optionnel et zone interdite de la caméra choisie.
     classes = parse_classes(args.classes)
     zone_polygon = load_zone_polygon(
         camera_id=args.camera,
@@ -321,6 +380,7 @@ def main():
     )
     if zone_polygon is not None:
         print(f"[ZONE]   {args.camera}: {len(zone_polygon)} points charges")
+    # Device : GPU si disponible, FP16 uniquement sur GPU.
     device, has_cuda = detect_device()
     use_half = has_cuda
 
@@ -328,6 +388,7 @@ def main():
     print(f"\n[MODELE] {model_label} charge: {model_path.name}")
     print(f"[VIDEO]  {video_path}")
 
+    # Ouverture de la vidéo et récupération de ses métadonnées.
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         print(f"[ERREUR] Impossible d'ouvrir la video: {video_path}")
@@ -337,24 +398,29 @@ def main():
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     total_frames = max(total_frames, 1)
 
+    # Fenêtre + trackbar de navigation (callback vide : la position est
+    # relue à chaque tour de boucle).
     window_name = f"Detections - {model_path.stem}"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window_name, 1280, 760)
 
     def on_trackbar(_):
+        """Callback trackbar volontairement vide (lecture par polling)."""
         pass
 
     cv2.createTrackbar("Frame", window_name, 0, max(total_frames - 1, 1), on_trackbar)
 
     cache = FrameCache(maxsize=max(50, args.cache_size))
-    paused = True
+    paused = True   # démarrage en pause sur la première frame
     frame_idx = 0
 
     def get_annotated(i: int):
+        """Retourne la frame i annotée, depuis le cache ou après inférence."""
         cached = cache.get(i)
         if cached is not None:
             return cached
 
+        # Cache manquant : lecture directe de la frame puis inférence.
         cap.set(cv2.CAP_PROP_POS_FRAMES, i)
         ok, frame = cap.read()
         if not ok or frame is None:
@@ -374,8 +440,10 @@ def main():
         cache.put(i, payload)
         return payload
 
+    # Boucle interactive : affichage, clavier et synchronisation trackbar.
     while True:
-        # Sync position depuis la trackbar
+        # L'utilisateur a déplacé la trackbar : saut à la frame demandée
+        # et mise en pause pour l'inspection.
         tb_val = cv2.getTrackbarPos("Frame", window_name)
         if tb_val != frame_idx:
             frame_idx = tb_val
@@ -390,9 +458,11 @@ def main():
                            infer_ms, n_boxes, paused)
         cv2.imshow(window_name, display)
 
+        # En pause : polling clavier léger ; en lecture : cadence de la vidéo.
         wait_ms = 30 if paused else max(1, int(1000 / fps))
         key = cv2.waitKeyEx(wait_ms)
 
+        # Gestion clavier : quitter, pause, pas-à-pas (codes Linux et Windows).
         if key in (KEY_Q, KEY_ESC):
             break
         if key == KEY_SPACE:
@@ -406,6 +476,7 @@ def main():
             frame_idx = max(frame_idx - 1, 0)
             cv2.setTrackbarPos("Frame", window_name, frame_idx)
         elif not paused and key == -1:
+            # Lecture automatique : avance d'une frame, pause en fin de vidéo.
             if frame_idx < total_frames - 1:
                 frame_idx += 1
                 cv2.setTrackbarPos("Frame", window_name, frame_idx)

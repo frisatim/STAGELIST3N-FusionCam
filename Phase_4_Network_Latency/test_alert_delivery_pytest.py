@@ -1,3 +1,5 @@
+"""Tests du benchmark de livraison d'alertes : transports locaux (queue, HTTP) et résumé statistique."""
+
 import pytest
 
 from Phase_4_Network_Latency.alert_delivery_benchmark import (
@@ -9,6 +11,7 @@ from Phase_4_Network_Latency.alert_delivery_benchmark import (
 
 
 def test_queue_benchmark_delivers_all_events():
+    """Le transport queue livre tous les événements avec des latences positives."""
     rows = run_queue_benchmark(events=5, rate_hz=0)
 
     assert len(rows) == 5
@@ -17,6 +20,7 @@ def test_queue_benchmark_delivers_all_events():
 
 
 def test_http_post_benchmark_delivers_all_events():
+    """Le transport http_post livre tous les événements (ignoré si les sockets locaux sont bloqués)."""
     try:
         rows = run_http_post_benchmark(events=3, rate_hz=0)
     except PermissionError:
@@ -27,6 +31,7 @@ def test_http_post_benchmark_delivers_all_events():
 
 
 def test_summarize_latencies_reports_p95():
+    """Le résumé statistique rapporte le bon nombre d'événements, la médiane et le p95."""
     summary = summarize_latencies(
         [
             AlertLatency(1, "queue", 1.0),

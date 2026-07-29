@@ -1,8 +1,12 @@
-"""Video capture helpers for Phase 3.
+"""Utilitaires de capture vidéo pour la Phase 3.
 
-OpenCV's default RTSP reader can buffer stale frames. For live multi-camera
-fusion, GStreamer with appsink/drop=true keeps the newest frame and reduces
-timestamp skew between cameras.
+Place dans le pipeline : ouvre les sources vidéo (fichiers enregistrés ou
+flux RTSP en direct) consommées par pipeline.py.
+
+Le lecteur RTSP par défaut d'OpenCV peut accumuler des frames périmées dans
+son tampon. Pour la fusion multi-caméras en direct, un pipeline GStreamer
+terminé par appsink drop=true ne conserve que la frame la plus récente, ce
+qui réduit la latence et l'écart d'horodatage entre caméras.
 """
 
 from __future__ import annotations
@@ -11,8 +15,11 @@ from dataclasses import dataclass
 import os
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-# Keep this before importing cv2. On Windows, OpenCV only sees GStreamer DLLs
-# if they are already on PATH when cv2 is loaded.
+# À garder avant l'import de cv2 : sous Windows, OpenCV ne voit les DLL
+# GStreamer que si elles sont déjà sur le PATH au chargement de cv2.
+# _GST_BIN pointe vers l'installation GStreamer Windows ; si ce chemin
+# n'existe pas (Linux, machine sans GStreamer), le bloc est simplement
+# ignoré et OpenCV se rabat sur ses backends disponibles.
 _GST_BIN = r"C:\gstreamer\1.0\msvc_x86_64\bin"
 if os.path.exists(_GST_BIN):
     os.environ["PATH"] = _GST_BIN + os.pathsep + os.environ.get("PATH", "")
@@ -25,6 +32,8 @@ import cv2
 
 @dataclass(frozen=True)
 class CaptureOptions:
+    """Options d'ouverture d'un flux : backend, latence et pipeline GStreamer."""
+
     backend: str = "opencv"  # opencv | gstreamer
     gst_latency_ms: int = 100
     gst_protocol: str = "tcp"  # tcp | udp
@@ -36,6 +45,8 @@ class CaptureOptions:
 
 @dataclass(frozen=True)
 class CaptureOpenResult:
+    """Résultat d'une ouverture : capture, backend retenu, source et erreurs cumulées."""
+
     cap: cv2.VideoCapture
     backend: str
     source: str
@@ -49,7 +60,12 @@ def build_gstreamer_rtsp_pipeline(
     codec: str = "h264",
     decoder: str = "avdec_h264",
 ) -> str:
-    """Build a low-latency RTSP -> BGR appsink pipeline for OpenCV."""
+    """Construit un pipeline RTSP vers BGR appsink à faible latence pour OpenCV.
+
+    Chaîne figée depay/parse/décodeur selon le codec. La terminaison
+    appsink drop=true max-buffers=1 sync=false ne conserve que la frame la
+    plus récente : c'est le coeur de la stratégie anti-buffering.
+    """
     protocols = "tcp" if protocol.lower() == "tcp" else "udp"
     codec = codec.lower()
     if codec == "h265":
@@ -74,7 +90,11 @@ def build_gstreamer_decodebin_pipeline(
     latency_ms: int = 100,
     protocol: str = "tcp",
 ) -> str:
-    """Build the tolerant RTSP pipeline used by the crash test."""
+    """Construit le pipeline RTSP tolérant (decodebin) validé par le crash test.
+
+    decodebin négocie lui-même depay/parse/décodeur, ce qui absorbe les
+    variations de codec d'une caméra à l'autre.
+    """
     protocols = "tcp" if protocol.lower() == "tcp" else "udp"
     return (
         f'rtspsrc location="{url}" latency={latency_ms} protocols={protocols} '
@@ -86,7 +106,11 @@ def build_gstreamer_decodebin_pipeline(
 
 
 def build_rtsp_variants(rtsp_url: str) -> list[str]:
-    """Return original URL, then subtype=1 variant when applicable."""
+    """Retourne l'URL d'origine, puis sa variante subtype=1 le cas échéant.
+
+    Sur les caméras Dahua, subtype=1 désigne le sub-stream (résolution
+    réduite), utile en repli quand le flux principal refuse de s'ouvrir.
+    """
     variants = [rtsp_url]
     try:
         parts = urlsplit(rtsp_url)
@@ -104,13 +128,21 @@ def build_rtsp_variants(rtsp_url: str) -> list[str]:
 
 
 def _try_open(source: str, backend: int | None = None) -> cv2.VideoCapture:
+    """Ouvre une VideoCapture avec le backend demandé (ou celui par défaut)."""
     if backend is None:
         return cv2.VideoCapture(source)
     return cv2.VideoCapture(source, backend)
 
 
 def open_capture_with_info(source: str, live: bool, options: CaptureOptions) -> CaptureOpenResult:
-    """Open a video source with GStreamer variants and FFmpeg fallback."""
+    """Ouvre une source vidéo avec variantes GStreamer puis repli FFmpeg/OpenCV.
+
+    En mode enregistré (live=False), une VideoCapture OpenCV standard suffit.
+    En mode live, essaie dans l'ordre : pipelines GStreamer (decodebin et/ou
+    fixe) sur chaque variante d'URL, puis FFmpeg et OpenCV par défaut si le
+    repli est autorisé. Retourne toujours un CaptureOpenResult ; en cas
+    d'échec total, cap est une capture fermée et error résume les tentatives.
+    """
     if not live:
         cap = cv2.VideoCapture(source)
         return CaptureOpenResult(cap=cap, backend="OPENCV", source=source)
@@ -169,5 +201,5 @@ def open_capture_with_info(source: str, live: bool, options: CaptureOptions) -> 
 
 
 def open_capture(source: str, live: bool, options: CaptureOptions) -> cv2.VideoCapture:
-    """Backward-compatible wrapper returning only the capture object."""
+    """Enveloppe rétro-compatible ne retournant que l'objet capture."""
     return open_capture_with_info(source, live, options).cap

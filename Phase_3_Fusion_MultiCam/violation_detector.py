@@ -1,7 +1,20 @@
 """
-violation_detector.py — Détection de violations de zones interdites pour le système
-de surveillance multi-caméras Phase 3. Surveille les positions au sol des personnes
-et déclenche des alertes à l'entrée dans une zone interdite.
+Détection de violations de sécurité pour le système multi-caméras (Phase 3).
+
+Place dans le pipeline : dernier maillon de l'analyse. Consomme les détections
+fusionnées (global_id attribué par MultiCameraFusion) et produit des alertes
+de deux types :
+  - "zone_violation_person" : une personne dont le point au sol entre dans une
+    zone interdite, définie en mètres dans config.yaml ;
+  - "forbidden_object" : un objet non autorisé vu dans l'atelier, avec deux
+    niveaux de confiance ("weak" : une seule caméra, "confirmed" : vote
+    multi-caméras atteint).
+
+Le détecteur maintient une machine à états par entité afin de dédupliquer les
+alertes : une entrée en zone ne déclenche qu'une seule alerte tant que la
+personne reste dans la zone, et une nouvelle alerte est émise si elle ressort
+puis rentre à nouveau (re-entry). Même principe pour les objets interdits,
+avec en plus une escalade possible du niveau "weak" vers "confirmed".
 """
 
 from __future__ import annotations
@@ -16,12 +29,36 @@ import numpy as np
 from alert import Alert
 from detection import Detection
 
+# Classes de véhicules tolérées dans l'atelier : jamais traitées comme objets interdits
 _ALLOWED_VEHICLE_CLASSES: frozenset[str] = frozenset(
     {"car", "truck", "bicycle", "motorcycle"}
 )
 
 
 class ViolationDetector:
+    """Détecte violations de zones et objets interdits, avec vote multi-caméras.
+
+    Paramètres lus dans config.yaml (section alerting) :
+      - person_zone_min_camera_votes : nombre minimal de caméras (parmi celles
+        couvrant la zone) devant voir la personne dans la zone pour confirmer
+        la violation.
+      - person_zone_min_camera_ratio : fraction minimale des caméras de la
+        zone devant voter ; le seuil effectif est le maximum des deux
+        critères, avec un plancher de 1.
+      - object_min_camera_votes : nombre de caméras requis pour qu'un objet
+        interdit passe au niveau "confirmed".
+      - object_emit_weak_alerts : si True, un objet vu par une seule caméra
+        émet une alerte de niveau "weak".
+
+    État interne (machine à états des alertes) :
+      - _active_violations : couples (global_id, zone_id) actuellement en
+        violation. Sert à dédupliquer (aucune nouvelle alerte tant que la
+        violation persiste) et à détecter les re-entries.
+      - _active_object_levels : niveau d'alerte courant par objet interdit
+        ("weak" ou "confirmed"). Permet l'escalade weak vers confirmed sans
+        jamais réémettre ni rétrograder une alerte confirmée active.
+    """
+
     def __init__(self, config: dict[str, Any]) -> None:
         self.zones: dict[str, dict] = self._load_zones(config)
         self.person_class_ids: set[int] = set(
@@ -52,14 +89,47 @@ class ViolationDetector:
         )
 
     def check(self, detections: list[Detection]) -> list[Alert]:
+        """Analyse une frame fusionnée et retourne les NOUVELLES alertes.
+
+        Déroulé :
+          1. Personnes : regroupe les détections par global_id, teste chaque
+             point au sol contre les polygones de zones, et agrège par couple
+             (global_id, zone_id) les caméras votantes et la meilleure
+             observation (confiance maximale).
+          2. Vote multi-caméras : une violation n'est retenue que si assez de
+             caméras couvrant la zone la confirment
+             (_has_enough_person_zone_votes).
+          3. Cycle de vie : par différence avec l'état de la frame précédente,
+             seules les violations nouvelles émettent une alerte
+             (déduplication) ; les violations disparues sont marquées résolues,
+             ce qui réarme l'alerte en cas de re-entry.
+          4. Objets interdits : même logique de vote par (global_id, classe),
+             avec niveaux weak / confirmed et escalade sans réémission.
+
+        Args:
+            detections: Détections de la frame courante, global_id renseigné
+                        par la fusion.
+
+        Returns:
+            Liste des alertes nouvellement déclenchées (vide si rien de neuf).
+        """
         alerts: list[Alert] = []
         current_violations: set[tuple[int, str]] = set()
 
+        # --- 1. Regroupement des personnes par identifiant global ---
+        # Seules les détections avec position au sol et global_id sont
+        # exploitables : le test de zone se fait en mètres et le vote se
+        # compte par entité fusionnée, pas par caméra isolée.
         person_detections: dict[int, list[Detection]] = {}
         for det in detections:
             if self.is_person_detection(det) and det.foot_point_m is not None and det.global_id is not None:
                 person_detections.setdefault(det.global_id, []).append(det)
 
+        # --- 2. Test point-dans-polygone et agrégation par (global_id, zone) ---
+        # Pour chaque entité et chaque zone, on retient la meilleure
+        # observation (confiance maximale) et l'ensemble des caméras votantes.
+        # Seules les caméras déclarées comme couvrant la zone comptent dans le
+        # vote : une caméra d'une autre salle ne peut pas confirmer.
         violation_meta: dict[tuple[int, str], dict] = {}
 
         for global_id, dets in person_detections.items():
@@ -84,12 +154,16 @@ class ViolationDetector:
                         if det.cam_id in zone["cameras"]:
                             meta["cameras"].add(det.cam_id)
 
+        # --- 3. Vote multi-caméras : ne retient que les violations assez confirmées ---
         for key, meta in violation_meta.items():
             _global_id, zone_id = key
             zone = self.zones[zone_id]
             if self._has_enough_person_zone_votes(meta["cameras"], zone):
                 current_violations.add(key)
 
+        # --- 4. Machine à états : différence avec la frame précédente ---
+        # new_violations : entrées en zone (une alerte est émise).
+        # resolved_violations : sorties de zone (réarme l'alerte pour une re-entry).
         new_violations = current_violations - self._active_violations
         resolved_violations = self._active_violations - current_violations
 
@@ -114,6 +188,10 @@ class ViolationDetector:
 
         self._active_violations = current_violations
 
+        # --- 5. Objets interdits : regroupement par (global_id, classe canonique) ---
+        # Sont exclus : les personnes (gérées ci-dessus) et les véhicules
+        # tolérés. Comme pour les personnes, on agrège les caméras votantes et
+        # la meilleure observation de chaque objet.
         object_groups: dict[tuple[int, str], dict] = {}
         for det in detections:
             if self.is_person_detection(det) or det.class_name in _ALLOWED_VEHICLE_CLASSES:
@@ -138,6 +216,9 @@ class ViolationDetector:
                 group["best_position_m"] = det.foot_point_m
                 group["timestamp"] = det.timestamp
 
+        # Niveau d'alerte selon le vote : "confirmed" si assez de caméras
+        # (object_min_camera_votes), sinon "weak" (une seule caméra) lorsque
+        # les alertes faibles sont activées.
         current_object_levels: dict[tuple[int, str], str] = {}
         for key, group in object_groups.items():
             n_cameras = len(group["cameras"])
@@ -146,6 +227,9 @@ class ViolationDetector:
             elif self.object_emit_weak_alerts and n_cameras >= 1:
                 current_object_levels[key] = "weak"
 
+        # Émission avec escalade : on n'émet que si le niveau change, et une
+        # alerte "confirmed" active n'est jamais réémise ni rétrogradée
+        # (la perte momentanée d'une caméra ne doit pas regénérer d'alertes).
         for key, alert_level in current_object_levels.items():
             previous_level = self._active_object_levels.get(key)
             if previous_level == alert_level or previous_level == "confirmed":
@@ -167,6 +251,7 @@ class ViolationDetector:
             else:
                 print(f"[WARN] Objet interdit faible : {alert}")
 
+        # Objets disparus de la frame : réarme l'alerte (une réapparition réémettra)
         resolved_objects = set(self._active_object_levels) - set(current_object_levels)
         for global_id, class_key in resolved_objects:
             print(f"[INFO] Objet interdit résolu : gid={global_id} classe={class_key}")
@@ -175,6 +260,13 @@ class ViolationDetector:
         return alerts
 
     def _has_enough_person_zone_votes(self, cameras: set[str], zone: dict) -> bool:
+        """Vérifie le vote multi-caméras d'une violation de zone.
+
+        Le seuil requis est le maximum entre le nombre minimal absolu de votes
+        (person_zone_min_camera_votes) et le nombre dérivé du ratio
+        (ceil(person_zone_min_camera_ratio * nombre de caméras couvrant la
+        zone)), avec un plancher de 1 pour ne jamais exiger zéro vote.
+        """
         zone_cameras = set(zone.get("cameras") or [])
         votes = len(cameras)
         required_by_ratio = int(np.ceil(len(zone_cameras) * self.person_zone_min_camera_ratio))
@@ -183,10 +275,11 @@ class ViolationDetector:
 
     @staticmethod
     def _class_key(class_name: str) -> str:
+        """Normalise un nom de classe (minuscules, espaces retirés) en clé de regroupement."""
         return class_name.strip().lower()
 
     def zones_containing(self, det: Detection) -> list[str]:
-        """Return forbidden-zone IDs containing this detection's floor point."""
+        """Retourne les zones interdites contenant le point au sol de cette détection."""
         if det.foot_point_m is None:
             return []
         pt = (float(det.foot_point_m[0]), float(det.foot_point_m[1]))
@@ -199,11 +292,18 @@ class ViolationDetector:
         return hits
 
     def is_person_detection(self, det: Detection) -> bool:
+        """Vrai si la détection est une personne (class_id configuré ou nom de classe)."""
         if det.class_id in self.person_class_ids:
             return True
         return det.class_name.strip().lower() in {"person", "personne", "human", "humain"}
 
     def _load_zones(self, config: dict[str, Any]) -> dict[str, dict]:
+        """Charge les zones interdites depuis config.yaml.
+
+        Chaque zone devient un polygone OpenCV en mètres (coordonnées du plan
+        de sol) accompagné de la liste des caméras qui la couvrent, base du
+        vote multi-caméras.
+        """
         zones: dict[str, dict] = {}
         zones_config: dict[str, Any] = config.get("zones_interdites", {})
         for zone_id, zone_data in zones_config.items():

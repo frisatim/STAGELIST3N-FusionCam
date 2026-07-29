@@ -1,7 +1,20 @@
 """
-auto_annotate_video.py
-Extrait des frames d'une vidéo à intervalle régulier et génère
-des pré-annotations YOLO (.txt) pour les classes COCO sélectionnées.
+Pré-annotation automatique depuis les vidéos enregistrées (Phase 1).
+
+Extrait des frames à intervalle régulier (FRAME_INTERVAL_SEC) de chaque
+vidéo correspondant à VIDEO_PATTERN dans VIDEOS_DIR, lance YOLOv8n (poids
+COCO) dessus et génère des pré-annotations YOLO (.txt) pour les classes
+COCO sélectionnées, converties vers les IDs custom du projet via
+COCO_TO_CUSTOM (ex. bottle 39 -> bouteille 8, cell phone 67 -> telephone 5).
+Chaque vidéo produit son propre sous-dossier images/ + labels/ sous
+BATCH_OUTPUT_ROOT. Utilisé pour amorcer l'annotation du dataset ; les
+labels générés restent à vérifier/compléter manuellement.
+
+Pas d'arguments CLI : les chemins, le pattern et le mapping de classes
+sont des constantes en tête de fichier à adapter avant lancement.
+
+Lancement :
+  python auto_annotate_video.py
 """
 
 import os
@@ -12,7 +25,7 @@ from tqdm import tqdm
 from ultralytics import YOLO
 
 # ============================================================
-# PARAMÈTRES — modifier ici avant de lancer le script
+# PARAMÈTRES : modifier ici avant de lancer le script
 # ============================================================
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -42,6 +55,7 @@ def auto_annotate(
     coco_to_custom: dict[int, int] | None = None,
     model_path: str = "yolov8n.pt",
 ) -> None:
+    """Extrait et pré-annote les frames d'une vidéo vers output_dir (images/ + labels/)."""
     if target_classes is None:
         target_classes = TARGET_CLASSES
     if coco_to_custom is None:
@@ -134,6 +148,7 @@ def process_videos_one_by_one(
     target_classes: list[int] | None,
     model_path: str,
 ) -> None:
+    """Traite chaque vidéo du dossier, avec un sous-dossier de sortie par vidéo."""
     videos_root = Path(videos_dir)
     if not videos_root.is_dir():
         raise FileNotFoundError(f"Dossier vidéos introuvable : {videos_root}")

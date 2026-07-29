@@ -1,15 +1,16 @@
 """
-Outil de calibration par homographie v3 (Phase 3.1 - Multi-résolution).
+Outil de calibration par homographie (Phase 3.1 - Multi-résolution).
 
-Amélioration clé par rapport à v2 :
-  Support de la calibration en HAUTE RESOLUTION (flux principal / mainstream)
-  ou directement sur le flux secondaire corrige 768x576.
-  Si la source est une autre resolution, conversion automatique vers la
-  RESOLUTION D'INFERENCE (flux secondaire / substream).
+Amélioration clé par rapport à la version précédente (conservée dans
+legacy/calibration_tool_v1.py) :
+  Support de la calibration en HAUTE RÉSOLUTION (flux principal / mainstream)
+  ou directement sur le flux secondaire corrigé 768x576.
+  Si la source est une autre résolution, conversion automatique vers la
+  RÉSOLUTION D'INFÉRENCE (flux secondaire / substream).
 
-  Tu cliques les points sur une frame source (idealement une video substream
-  enregistree en 768x576 pour matcher l'inference), et l'outil stocke DEUX
-  matrices :
+  On clique les points sur une frame source (idéalement une vidéo substream
+  enregistrée en 768x576 pour correspondre à l'inférence), et l'outil stocke
+  DEUX matrices :
     - H_calibration : utilisable avec la frame source
     - H_inference   : utilisable avec la frame substream (apres fix ratio)
 
@@ -20,7 +21,7 @@ Principe mathématique :
   Donc : H_inference = H_calibration @ S
 
 Usage :
-  # Calibrer avec video substream corrigee 768x576
+  # Calibrer avec une vidéo substream corrigée 768x576
   python calibration_tool_v2.py --camera cam_03 --video recordings/recordings/cam_03_calib.mp4 \\
                                 --ref-file ref_points_template.yaml
 
@@ -630,7 +631,7 @@ def main():
     selected_video_arg = args.hd_video if args.hd_video else args.video
 
     print(f"\n{'='*70}")
-    print(f"  CALIBRATION v3 — {args.camera}")
+    print(f"  CALIBRATION : {args.camera}")
     print(f"  Video source (arg) : {selected_video_arg if selected_video_arg else '[auto]'}")
     print(f"  Points   : {n_points}")
     print(f"{'='*70}")
@@ -672,7 +673,7 @@ def main():
     print(f"\n  Points a cliquer (dans cet ordre) :")
     for i, (label, (mx, my)) in enumerate(zip(ref_labels, ref_metres)):
         desc = ref_data[args.camera][i].get("description", "")
-        print(f"    {i+1}. {label} : ({mx:.3f}, {my:.3f}) m  — {desc}")
+        print(f"    {i+1}. {label} : ({mx:.3f}, {my:.3f}) m  ({desc})")
 
     # --- Collecte clics en HD ---
     pts_pixels_hd = collect_points_hd(
@@ -724,7 +725,7 @@ def main():
     print(f"\n  Verification conversion HD -> substream ({sub_w}x{sub_h}) :")
     print(f"    Erreur moyenne avec H_substream : {errors_sub_cm.mean():.3f} cm")
     print(f"    Erreur max avec H_substream     : {errors_sub_cm.max():.3f} cm")
-    print(f"    (Ces erreurs doivent etre quasi-identiques au HD — sinon bug)")
+    print(f"    (Ces erreurs doivent etre quasi-identiques au HD, sinon bug)")
 
     # --- Confirmation ---
     if diag_hd['mean_error_cm'] > 20:

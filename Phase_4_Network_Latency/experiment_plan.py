@@ -1,3 +1,25 @@
+"""Génération de la matrice d'expériences réseau de la Phase 4.
+
+Ce script énumère les combinaisons (OS cible x type de lien x condition réseau
+x transport vidéo x transport d'alertes) et produit deux fichiers : un CSV
+exploitable par script et un plan Markdown lisible. Chaque cas contient la
+commande de run à lancer (campagne live Phase 3 ou benchmark d'alertes Phase 4)
+ainsi que les commandes de dégradation réseau à appliquer avant le run et à
+retirer après.
+
+Exemple::
+
+    python Phase_4_Network_Latency/experiment_plan.py --interface eth0 --duration-min 10
+
+Avertissement : sous Linux, les commandes générées contiennent ``sudo tc qdisc
+... netem`` et modifient réellement la configuration réseau de l'interface
+indiquée (délai, gigue, perte). Elles ne doivent être exécutées que sur la
+machine de test dédiée, jamais sur un poste de production. Le script lui-même
+n'exécute rien : il ne fait qu'écrire les commandes dans les fichiers de
+sortie. Pour une cible Windows, des lignes ``REM`` rappellent de configurer
+manuellement un émulateur réseau (type NetLimiter ou clumsy).
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -8,12 +30,20 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class NetworkCondition:
+    """Condition réseau émulée : nom, délai ajouté (ms), gigue (ms) et taux de perte (%)."""
+
     name: str
     delay_ms: int
     jitter_ms: int
     loss_pct: float
 
     def tc_apply_command(self, interface: str) -> str:
+        """Retourne la commande ``tc netem`` (Linux) appliquant cette condition à l'interface.
+
+        Pour la condition ``clean``, retourne la commande de suppression de la
+        discipline de file (aucune dégradation). Attention : ces commandes
+        utilisent ``sudo tc`` et sont destinées à la machine de test uniquement.
+        """
         if self.name == "clean":
             return f"sudo tc qdisc del dev {interface} root"
         return (
@@ -24,6 +54,8 @@ class NetworkCondition:
 
 @dataclass(frozen=True)
 class VideoTransport:
+    """Transport vidéo testé : backend de capture, protocole RTSP (tcp/udp) et latence GStreamer (ms)."""
+
     name: str
     capture_backend: str
     gst_protocol: str
@@ -33,6 +65,8 @@ class VideoTransport:
 
 @dataclass(frozen=True)
 class AlertTransport:
+    """Transport d'alertes testé : nom, protocole (websocket/mqtt/none) et QoS MQTT éventuel."""
+
     name: str
     protocol: str
     qos: int | None = None
@@ -40,6 +74,15 @@ class AlertTransport:
 
 @dataclass(frozen=True)
 class ExperimentCase:
+    """Cas d'expérience complet de la matrice Phase 4.
+
+    Regroupe l'identifiant du run, sa famille (``video_network`` ou
+    ``alert_transport``), le contexte (OS cible, type de lien), la condition
+    réseau et les transports testés, ainsi que les trois commandes associées :
+    ``tc_apply`` (dégradation réseau avant le run), ``command`` (le run
+    lui-même) et ``tc_clear`` (retour à la normale après le run).
+    """
+
     run_id: str
     family: str
     os_target: str
@@ -52,6 +95,7 @@ class ExperimentCase:
     tc_clear: str
 
     def csv_row(self) -> dict[str, str | int | float]:
+        """Aplati le cas en une ligne de dictionnaire pour l'écriture CSV."""
         return {
             "run_id": self.run_id,
             "family": self.family,
@@ -74,17 +118,21 @@ class ExperimentCase:
         }
 
 
+# Les trois conditions réseau étudiées : réseau propre (référence), dégradation
+# modérée et dégradation sévère (délai/gigue/perte croissants).
 NETWORK_CONDITIONS = (
     NetworkCondition("clean", delay_ms=0, jitter_ms=0, loss_pct=0.0),
     NetworkCondition("moderate", delay_ms=80, jitter_ms=25, loss_pct=1.0),
     NetworkCondition("severe", delay_ms=200, jitter_ms=75, loss_pct=5.0),
 )
 
+# Transports vidéo comparés : RTSP sur TCP (fiable) et sur UDP (faible latence).
 VIDEO_TRANSPORTS = (
     VideoTransport("rtsp_tcp", capture_backend="gstreamer", gst_protocol="tcp", gst_latency_ms=50),
     VideoTransport("rtsp_udp", capture_backend="gstreamer", gst_protocol="udp", gst_latency_ms=50),
 )
 
+# Transports d'alertes comparés : WebSocket, MQTT QoS 0 et MQTT QoS 1.
 ALERT_TRANSPORTS = (
     AlertTransport("websocket", protocol="websocket"),
     AlertTransport("mqtt_qos0", protocol="mqtt", qos=0),
@@ -93,6 +141,12 @@ ALERT_TRANSPORTS = (
 
 
 def network_apply_command(os_target: str, network: NetworkCondition, interface: str) -> str:
+    """Retourne la commande d'application de la condition réseau selon l'OS cible.
+
+    Linux : commande ``sudo tc netem`` réelle (machine de test uniquement).
+    Windows : simple ligne ``REM`` rappelant les paramètres à reproduire dans
+    un émulateur réseau (NetLimiter, clumsy, etc.), aucune commande exécutable.
+    """
     if os_target.lower() == "linux":
         return network.tc_apply_command(interface)
     if network.name == "clean":
@@ -104,6 +158,7 @@ def network_apply_command(os_target: str, network: NetworkCondition, interface: 
 
 
 def network_clear_command(os_target: str, interface: str) -> str:
+    """Retourne la commande de retrait de toute dégradation réseau selon l'OS cible."""
     if os_target.lower() == "linux":
         return f"sudo tc qdisc del dev {interface} root"
     return "REM disable Windows network emulator"
@@ -122,6 +177,11 @@ def build_live_command(
     video: VideoTransport,
     out_dir: str,
 ) -> str:
+    """Construit la ligne de commande d'une campagne live Phase 3 pour un transport vidéo donné.
+
+    La commande force le backend GStreamer (``--no-ffmpeg-fallback``) afin que
+    le protocole RTSP testé (tcp/udp) soit réellement celui utilisé.
+    """
     return (
         f"{python_exe} Phase_3_Fusion_MultiCam/run_live_campaign.py "
         f"--versions {version} --models {model} --formats {fmt} "
@@ -147,10 +207,23 @@ def generate_experiment_cases(
     device: str = "cuda:0",
     record_fps: float = 25.0,
 ) -> list[ExperimentCase]:
+    """Génère la liste complète des cas d'expérience de la matrice Phase 4.
+
+    Deux familles de cas sont produites pour chaque couple (OS cible, type de
+    lien) :
+
+    - ``video_network`` : produit cartésien des conditions réseau et des
+      transports vidéo (campagne live Phase 3 sous réseau dégradé) ;
+    - ``alert_transport`` : un cas par transport d'alertes, toujours en réseau
+      propre et avec le premier transport vidéo (mesure isolée du transport).
+
+    Chaque cas embarque sa commande de run et ses commandes réseau apply/clear.
+    """
     cases: list[ExperimentCase] = []
 
     for os_target in os_targets:
         for link_type in link_types:
+            # Famille video_network : conditions réseau x transports vidéo.
             for network in NETWORK_CONDITIONS:
                 for video in VIDEO_TRANSPORTS:
                     run_id = f"video_{os_target}_{link_type}_{network.name}_{video.name}"
@@ -181,6 +254,8 @@ def generate_experiment_cases(
                         )
                     )
 
+            # Famille alert_transport : un cas par transport d'alertes, en
+            # réseau propre, pour isoler le coût du transport lui-même.
             clean = NETWORK_CONDITIONS[0]
             video = VIDEO_TRANSPORTS[0]
             for alert in ALERT_TRANSPORTS:
@@ -210,6 +285,7 @@ def generate_experiment_cases(
 
 
 def write_cases_csv(cases: list[ExperimentCase], out_csv: Path) -> None:
+    """Écrit la matrice au format CSV (une ligne par cas), en créant les dossiers au besoin."""
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     fields = list(cases[0].csv_row().keys()) if cases else ["run_id"]
     with out_csv.open("w", newline="", encoding="utf-8") as handle:
@@ -220,6 +296,11 @@ def write_cases_csv(cases: list[ExperimentCase], out_csv: Path) -> None:
 
 
 def write_cases_markdown(cases: list[ExperimentCase], out_md: Path) -> None:
+    """Écrit le plan d'expériences au format Markdown lisible.
+
+    Chaque cas devient une section avec ses caractéristiques puis trois blocs de
+    code : mise en place réseau, commande de run et nettoyage réseau.
+    """
     out_md.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "# Phase 4 experiment matrix",
@@ -255,19 +336,50 @@ def write_cases_markdown(cases: list[ExperimentCase], out_md: Path) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate Phase 4 experiment matrix.")
-    parser.add_argument("--out-csv", type=Path, default=Path("Phase_4_Network_Latency/phase4_experiment_matrix.csv"))
-    parser.add_argument("--out-md", type=Path, default=Path("Phase_4_Network_Latency/phase4_experiment_matrix.md"))
-    parser.add_argument("--interface", default="eth0")
-    parser.add_argument("--python-exe", default="python")
-    parser.add_argument("--os-targets", default="linux")
-    parser.add_argument("--link-types", default="ethernet")
-    parser.add_argument("--duration-min", type=float, default=10.0)
-    parser.add_argument("--device", default="cuda:0")
+    """Analyse les options de la ligne de commande du générateur de matrice."""
+    parser = argparse.ArgumentParser(
+        description="Génère la matrice d'expériences réseau de la Phase 4 (CSV + Markdown).",
+        epilog=(
+            "Les commandes réseau générées pour Linux contiennent sudo tc netem : "
+            "à exécuter uniquement sur la machine de test dédiée."
+        ),
+    )
+    parser.add_argument(
+        "--out-csv",
+        type=Path,
+        default=Path("Phase_4_Network_Latency/phase4_experiment_matrix.csv"),
+        help="Chemin du CSV de sortie (une ligne par cas d'expérience).",
+    )
+    parser.add_argument(
+        "--out-md",
+        type=Path,
+        default=Path("Phase_4_Network_Latency/phase4_experiment_matrix.md"),
+        help="Chemin du plan Markdown de sortie (un cas par section).",
+    )
+    parser.add_argument("--interface", default="eth0", help="Interface réseau visée par les commandes tc netem.")
+    parser.add_argument("--python-exe", default="python", help="Exécutable Python inséré dans les commandes de run.")
+    parser.add_argument(
+        "--os-targets",
+        default="linux",
+        help="OS cibles séparés par des virgules (ex. linux,windows) ; détermine tc netem ou REM.",
+    )
+    parser.add_argument(
+        "--link-types",
+        default="ethernet",
+        help="Types de lien séparés par des virgules (ex. ethernet,wifi) ; sert au nommage des runs.",
+    )
+    parser.add_argument(
+        "--duration-min",
+        type=float,
+        default=10.0,
+        help="Durée de chaque campagne live Phase 3 en minutes (défaut : 10).",
+    )
+    parser.add_argument("--device", default="cuda:0", help="Périphérique d'inférence inséré dans les commandes de run.")
     return parser.parse_args()
 
 
 def main() -> None:
+    """Point d'entrée : génère les cas puis écrit la matrice CSV et le plan Markdown."""
     args = parse_args()
     cases = generate_experiment_cases(
         interface=args.interface,

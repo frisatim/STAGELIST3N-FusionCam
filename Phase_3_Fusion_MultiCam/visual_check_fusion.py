@@ -1,11 +1,12 @@
 """
-visual_check_fusion.py — Interactive multi-camera fusion test harness.
+visual_check_fusion.py : harnais de test interactif de la fusion multi-caméras.
 
-Loads CameraTracker instances and MultiCameraFusion, reads one frame per
-camera per iteration, runs ByteTrack + fusion, logs cross-camera associations
-to the console, and displays an annotated side-by-side view.
+Charge les instances CameraTracker et MultiCameraFusion, lit une frame par
+caméra à chaque itération, exécute ByteTrack + la fusion, journalise les
+associations inter-caméras dans la console et affiche une vue annotée
+côte à côte.
 
-Usage:
+Usage :
     python visual_check_fusion.py --cameras cam_03,cam_05,cam_07 --model ../yolov8n.pt
     python visual_check_fusion.py --cameras cam_03,cam_07 --model ../yolov8n.pt --max-frames 300
 """
@@ -30,10 +31,14 @@ from tracker import CameraTracker
 
 
 # ----------------------------------------------------------------------
-# Color utilities
+# Utilitaires couleur
 # ----------------------------------------------------------------------
 
 def _global_id_to_color(gid: int) -> tuple[int, int, int]:
+    """Couleur BGR stable dérivée de l'identifiant global (hachage MD5).
+
+    Les composantes sont bornées à 80 minimum pour rester lisibles à l'écran.
+    """
     h = int(hashlib.md5(str(gid).encode()).hexdigest()[:6], 16)
     r = (h & 0xFF0000) >> 16
     g = (h & 0x00FF00) >> 8
@@ -53,6 +58,9 @@ def _annotate_frame(
     detections: list[Detection],
     cam_id: str,
 ) -> np.ndarray:
+    """Annote la frame avec les détections de la caméra : boîte englobante,
+    étiquette (id global, id piste, classe, confiance, position en mètres)
+    et point pied. Renvoie une copie annotée de la frame."""
     vis = frame.copy()
     font = cv2.FONT_HERSHEY_SIMPLEX
     scale, thick = 0.45, 1
@@ -87,7 +95,7 @@ def _annotate_frame(
 
 
 # ----------------------------------------------------------------------
-# Main loop
+# Boucle principale
 # ----------------------------------------------------------------------
 
 def run(
@@ -100,6 +108,13 @@ def run(
     fusion_time_window_ms: float,
     device: str | None,
 ) -> None:
+    """Boucle principale du harnais : ouvre les vidéos des caméras, exécute le
+    tracking par caméra puis la fusion, journalise les associations
+    inter-caméras et affiche la mosaïque annotée.
+
+    S'arrête après max_frames, à l'épuisement d'une vidéo ou sur la touche 'q',
+    puis imprime un résumé (frames traitées, ids globaux uniques, associations).
+    """
     script_dir = Path(__file__).parent
     base_dir = script_dir  # video_path dans config est déjà relatif à Phase_3/
 
@@ -127,11 +142,11 @@ def run(
     for cam_id in cam_ids:
         cam_cfg = cameras_cfg.get(cam_id)
         if cam_cfg is None:
-            print(f"[ERR] Camera {cam_id} not found in config.yaml — aborting.")
+            print(f"[ERR] Camera {cam_id} not found in config.yaml, arret.")
             sys.exit(1)
         video_path_raw: str = cam_cfg.get("video_path", "")
         if not video_path_raw:
-            print(f"[ERR] No video_path for {cam_id} in config.yaml — aborting.")
+            print(f"[ERR] No video_path for {cam_id} in config.yaml, arret.")
             sys.exit(1)
         resolved = (base_dir / video_path_raw).resolve()
         if not resolved.exists():
@@ -165,7 +180,7 @@ def run(
             display_frames[cam_id] = fix_frame(frame, cam_id, ar_fix)
 
         if all_done:
-            print("[INFO] One or more cameras exhausted — stopping.")
+            print("[INFO] One or more cameras terminees, arret.")
             break
 
         timestamp = frame_count / 25.0
@@ -232,7 +247,7 @@ def run(
             cv2.imshow("Fusion Test", combined)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
-                print("[INFO] 'q' pressed — stopping.")
+                print("[INFO] touche q, arret.")
                 break
 
         frame_count += 1
@@ -251,50 +266,51 @@ def run(
 
 
 # ----------------------------------------------------------------------
-# Entry point
+# Point d'entrée
 # ----------------------------------------------------------------------
 
 def main() -> None:
+    """Analyse les arguments, charge config.yaml puis lance la boucle de test."""
     parser = argparse.ArgumentParser(
-        description="Multi-camera fusion test harness."
+        description="Harnais de test de la fusion multi-caméras."
     )
     parser.add_argument(
         "--cameras",
         required=True,
-        help="Comma-separated camera IDs, e.g. cam_03,cam_05,cam_07",
+        help="Identifiants caméras séparés par des virgules, ex. cam_03,cam_05,cam_07",
     )
     parser.add_argument(
         "--model",
         required=True,
-        help="Path to YOLO .pt model file, e.g. ../yolov8n.pt",
+        help="Chemin du modèle YOLO .pt, ex. ../yolov8n.pt",
     )
     parser.add_argument(
         "--max-frames",
         type=int,
         default=None,
-        help="Stop after N frames (default: run until exhausted or 'q')",
+        help="S'arrêter après N frames (défaut : jusqu'à épuisement ou touche 'q')",
     )
     parser.add_argument(
         "--no-window",
         action="store_true",
-        help="Disable cv2.imshow display (headless mode)",
+        help="Désactiver l'affichage cv2.imshow (mode sans fenêtre)",
     )
     parser.add_argument(
         "--fusion-distance-m",
         type=float,
         default=1.0,
-        help="Fusion distance threshold D in metres.",
+        help="Seuil de distance de fusion D en mètres.",
     )
     parser.add_argument(
         "--fusion-time-window-ms",
         type=float,
         default=500.0,
-        help="Fusion time window in milliseconds.",
+        help="Fenêtre temporelle de fusion en millisecondes.",
     )
     parser.add_argument(
         "--device",
         default=None,
-        help="YOLO device, e.g. cuda:0 or cpu. Defaults to config detection.device.",
+        help="Périphérique YOLO, ex. cuda:0 ou cpu. Défaut : detection.device de la config.",
     )
     args = parser.parse_args()
 

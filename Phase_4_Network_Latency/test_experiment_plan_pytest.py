@@ -1,3 +1,5 @@
+"""Tests du générateur de matrice d'expériences : contenu de la matrice, commandes et export CSV."""
+
 from pathlib import Path
 
 from Phase_4_Network_Latency.experiment_plan import (
@@ -7,6 +9,7 @@ from Phase_4_Network_Latency.experiment_plan import (
 
 
 def test_generate_experiment_cases_keeps_matrix_focused():
+    """La matrice Linux/Ethernet contient exactement les 9 cas attendus (6 vidéo + 3 alertes)."""
     cases = generate_experiment_cases(
         interface="eth-test",
         os_targets=("linux",),
@@ -24,6 +27,7 @@ def test_generate_experiment_cases_keeps_matrix_focused():
 
 
 def test_video_case_uses_gstreamer_protocol_without_ffmpeg_fallback():
+    """Un cas vidéo UDP force le backend GStreamer, le protocole udp et l'absence de repli FFmpeg."""
     cases = generate_experiment_cases(interface="eth-test")
     udp_case = next(case for case in cases if case.run_id == "video_linux_ethernet_clean_rtsp_udp")
 
@@ -33,6 +37,7 @@ def test_video_case_uses_gstreamer_protocol_without_ffmpeg_fallback():
 
 
 def test_write_cases_csv(tmp_path: Path):
+    """L'export CSV écrit l'en-tête attendu et l'identifiant du premier cas."""
     out = tmp_path / "matrix.csv"
     cases = generate_experiment_cases(interface="eth-test")
 

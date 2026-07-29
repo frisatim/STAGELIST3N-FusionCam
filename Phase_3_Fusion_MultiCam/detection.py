@@ -3,6 +3,10 @@ Module de structures de données pour les détections Phase 3.
 
 Contient la dataclass Detection qui représente une détection unique
 (personne ou objet) produite par un CameraTracker à un instant donné.
+
+Place dans le pipeline : Detection est le format d'échange entre le suivi
+mono-caméra (tracker.py), la fusion inter-caméras (fusion.py, qui renseigne
+global_id) et la détection de violations (violation_detector.py).
 """
 
 from __future__ import annotations
@@ -15,17 +19,21 @@ class Detection:
     """Représente une détection produite par un tracker mono-caméra.
 
     Attributes:
-        cam_id: Camera identifier (e.g. "cam_03").
-        track_id: ByteTrack local ID (unique per camera, resets between sessions).
-        global_id: Cross-camera ID assigned by MultiCameraFusion. None until fusion.
-        timestamp: Unix timestamp of the frame (seconds, float).
-        bbox_px: Bounding box in pixels (x1, y1, x2, y2) after aspect-ratio fix.
-        foot_point_px: Bottom-center of bbox in pixels (u, v).
-        foot_point_m: Foot point projected to floor coordinates in metres (x, y).
-                      (0, 0) is top-left of the floor plan. None if no homography.
-        confidence: Detection confidence score in [0, 1].
-        class_id: COCO class index (0 = person).
-        class_name: Human-readable class label (e.g. "person").
+        cam_id: Identifiant de la caméra (ex. "cam_03").
+        track_id: Identifiant local ByteTrack (unique par caméra, remis à zéro
+                  entre sessions).
+        global_id: Identifiant inter-caméras attribué par MultiCameraFusion.
+                   None tant que la fusion n'est pas passée.
+        timestamp: Horodatage Unix de la frame (secondes, float).
+        bbox_px: Boîte englobante en pixels (x1, y1, x2, y2) après correctif
+                 de ratio d'aspect.
+        foot_point_px: Bas-centre de la bbox en pixels (u, v).
+        foot_point_m: Point au sol projeté en coordonnées mètres (x, y).
+                      (0, 0) est le coin haut-gauche du plan de sol.
+                      None en l'absence d'homographie.
+        confidence: Score de confiance de la détection dans [0, 1].
+        class_id: Indice de classe COCO (0 = personne).
+        class_name: Nom de classe lisible (ex. "person").
     """
 
     cam_id: str
@@ -48,23 +56,23 @@ class Detection:
 
     @property
     def is_person(self) -> bool:
-        """Return True if this detection is a person (COCO class 0)."""
+        """Vrai si la détection est une personne (classe COCO 0)."""
         return self.class_id == 0
 
     @property
     def bbox_center_px(self) -> tuple[float, float]:
-        """Return the geometric center of the bounding box in pixels."""
+        """Retourne le centre géométrique de la boîte englobante en pixels."""
         x1, y1, x2, y2 = self.bbox_px
         return ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
 
     @property
     def bbox_wh_px(self) -> tuple[float, float]:
-        """Return (width, height) of the bounding box in pixels."""
+        """Retourne (largeur, hauteur) de la boîte englobante en pixels."""
         x1, y1, x2, y2 = self.bbox_px
         return (x2 - x1, y2 - y1)
 
     def has_floor_position(self) -> bool:
-        """Return True if foot_point_m is available (homography was applied)."""
+        """Vrai si foot_point_m est disponible (l'homographie a été appliquée)."""
         return self.foot_point_m is not None
 
     def __repr__(self) -> str:

@@ -1,8 +1,17 @@
 """
-Multi-camera surveillance pipeline for Phase 3 industrial system.
+Pipeline de surveillance multi-caméras du système industriel (Phase 3).
 
-Orchestrates CameraTracker instances, MultiCameraFusion, and ViolationDetector
-to process either recorded videos or live RTSP streams.
+Point d'entrée du coeur de la Phase 3 : orchestre les instances CameraTracker
+(une par caméra), MultiCameraFusion (identifiants globaux inter-caméras) et
+ViolationDetector (zones interdites, objets interdits), sur des vidéos
+enregistrées ou des flux RTSP en direct.
+
+Déroulé par frame :
+  1. Lecture d'une frame par caméra (fichiers ou RTSP).
+  2. Suivi mono-caméra (YOLO + ByteTrack) et projection au sol, par caméra.
+  3. Fusion inter-caméras : attribution des identifiants globaux.
+  4. Détection de violations et émission d'alertes.
+  5. Affichage optionnel : mosaïque annotée et bandeau d'alertes.
 """
 
 from __future__ import annotations
@@ -14,8 +23,10 @@ import time
 from collections import deque
 from pathlib import Path
 
-# Keep this before importing cv2. On Windows, OpenCV only sees GStreamer DLLs
-# if they are already on PATH when cv2 is loaded.
+# À garder avant l'import de cv2 : sous Windows, OpenCV ne voit les DLL
+# GStreamer que si elles sont déjà sur le PATH au chargement de cv2.
+# _GST_BIN pointe vers l'installation GStreamer Windows ; si ce chemin
+# n'existe pas (Linux, machine sans GStreamer), le bloc est simplement ignoré.
 _GST_BIN = r"C:\gstreamer\1.0\msvc_x86_64\bin"
 if os.path.exists(_GST_BIN):
     os.environ["PATH"] = _GST_BIN + os.pathsep + os.environ.get("PATH", "")
@@ -36,14 +47,20 @@ from tracker import CameraTracker
 from video_capture import CaptureOptions, open_capture_with_info
 from violation_detector import ViolationDetector
 
+# Nombre de cellules par ligne dans la mosaïque d'affichage
 COLS_PER_ROW: int = 4
 
 
 # ----------------------------------------------------------------------
-# Module-level drawing utilities
+# Utilitaires de dessin (niveau module)
 # ----------------------------------------------------------------------
 
 def _global_id_to_color(gid: int) -> tuple[int, int, int]:
+    """Dérive du global_id une couleur BGR stable (hachage MD5).
+
+    La même entité garde ainsi la même couleur sur toutes les caméras ;
+    le plancher à 80 par canal évite les couleurs trop sombres sur la vidéo.
+    """
     h = int(hashlib.md5(str(gid).encode()).hexdigest()[:6], 16)
     r = (h & 0xFF0000) >> 16
     g = (h & 0x00FF00) >> 8
@@ -62,6 +79,14 @@ def _draw_detections_global(
     violation_detector: ViolationDetector | None = None,
     track_trails: dict[tuple[str, int], deque[tuple[int, int]]] | None = None,
 ) -> np.ndarray:
+    """Annote une frame avec les détections d'une caméra (vue fusion).
+
+    Pour chaque détection de la caméra : boîte englobante colorée par
+    identifiant global (rouge si le point au sol est dans une zone interdite),
+    label (global_id, track_id, classe, confiance, position en mètres),
+    traînée du centre de la boîte, marqueur du point au sol pour les
+    personnes et croix pour les objets.
+    """
     vis = frame.copy()
     _draw_projected_zones(vis, zones_px or [])
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -148,6 +173,7 @@ def _draw_detections_global(
 
 
 def _is_valid_bbox(bbox: tuple[float, float, float, float]) -> bool:
+    """Vrai si la bbox est finie et de surface strictement positive."""
     x1, y1, x2, y2 = bbox
     return bool(np.isfinite([x1, y1, x2, y2]).all() and x2 > x1 and y2 > y1)
 
@@ -156,7 +182,7 @@ def _draw_projected_zones(
     frame: np.ndarray,
     zones_px: list[tuple[str, np.ndarray]],
 ) -> None:
-    """Draw forbidden-zone polygons already projected into camera pixels."""
+    """Dessine les polygones de zones interdites déjà projetés en pixels caméra."""
     if not zones_px:
         return
 
@@ -188,6 +214,11 @@ def _build_grid(
     cell_w: int = 480,
     cell_h: int = 360,
 ) -> np.ndarray:
+    """Assemble les frames caméra en une mosaïque à COLS_PER_ROW colonnes.
+
+    Les caméras sans frame reçoivent une cellule de statut ; les cellules
+    manquantes de la dernière ligne sont remplies de noir.
+    """
     cam_ids = cam_ids or sorted(frames_by_cam.keys())
     status_by_cam = status_by_cam or {}
     cells: list[np.ndarray] = []
@@ -226,12 +257,14 @@ def _build_grid(
 
 
 def _make_status_cell(cam_id: str, status: str, cell_w: int, cell_h: int) -> np.ndarray:
+    """Crée une cellule noire portant l'identifiant caméra et son statut."""
     cell = np.zeros((cell_h, cell_w, 3), dtype=np.uint8)
     _draw_status_text(cell, cam_id, status)
     return cell
 
 
 def _draw_status_text(frame: np.ndarray, cam_id: str, status: str) -> None:
+    """Écrit l'identifiant caméra et son statut en haut de la cellule."""
     cv2.putText(
         frame,
         cam_id,
@@ -255,6 +288,7 @@ def _draw_status_text(frame: np.ndarray, cam_id: str, status: str) -> None:
 
 
 def _draw_alert_banner(grid: np.ndarray, active_alerts: list[Alert]) -> np.ndarray:
+    """Ajoute sous la mosaïque un bandeau listant les trois dernières alertes."""
     banner_h = 40
     banner = np.zeros((banner_h, grid.shape[1], 3), dtype=np.uint8)
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -270,10 +304,18 @@ def _draw_alert_banner(grid: np.ndarray, active_alerts: list[Alert]) -> np.ndarr
 
 
 # ----------------------------------------------------------------------
-# Pipeline class
+# Classe pipeline
 # ----------------------------------------------------------------------
 
 class MultiCameraPipeline:
+    """Orchestrateur de la Phase 3 : trackers par caméra, fusion et violations.
+
+    À la construction : charge config.yaml, instancie un CameraTracker par
+    caméra activée et calibrée (homographie présente), projette les zones
+    interdites dans chaque image caméra pour l'affichage, puis crée la fusion
+    et le détecteur de violations partagés par toutes les caméras.
+    """
+
     def __init__(
         self,
         config_path: str,
@@ -286,6 +328,21 @@ class MultiCameraPipeline:
         target_classes: list[int] | None = None,
         person_class_ids: list[int] | None = None,
     ) -> None:
+        """Charge la configuration et construit trackers, fusion et détecteur.
+
+        Args:
+            config_path: Chemin de config.yaml (caméras, homographies, zones, fusion).
+            model_path: Poids YOLO/RT-DETR communs à toutes les caméras.
+            fusion_distance_threshold_m: Seuil de distance de fusion en mètres
+                (défaut : valeur du config, sinon 1.0).
+            fusion_time_window_ms: Fenêtre temporelle de fusion en millisecondes
+                (défaut : valeur du config, sinon 500).
+            camera_ids: Sous-ensemble de caméras à lancer (None = toutes les actives).
+            device: Périphérique d'inférence ("cuda:0", "cpu", ...), sinon config.
+            capture_options: Options d'ouverture des flux (backend, GStreamer).
+            target_classes: Classes COCO à suivre (None = toutes).
+            person_class_ids: Classes considérées comme personnes pour les zones.
+        """
         with open(config_path, "r", encoding="utf-8") as fh:
             self._config: dict = yaml.safe_load(fh)
         if person_class_ids is not None:
@@ -320,15 +377,18 @@ class MultiCameraPipeline:
         cameras_section: dict = self._config.get("cameras", {})
         requested_cameras = set(camera_ids or [])
 
+        # Ne conserve que les caméras demandées, activées dans le config et
+        # calibrées : sans homographie, aucune position au sol n'est possible,
+        # donc ni fusion ni détection de violation pour cette caméra.
         for cam_id, cam_cfg in cameras_section.items():
             if requested_cameras and cam_id not in requested_cameras:
-                print(f"[WARN] {cam_id} — not requested, skipping.")
+                print(f"[WARN] {cam_id} : not requested, skipping.")
                 continue
             if not cam_cfg.get("enabled", False):
-                print(f"[WARN] {cam_id} — disabled in config, skipping.")
+                print(f"[WARN] {cam_id} : disabled in config, skipping.")
                 continue
             if not self._has_homography(self._config, cam_id):
-                print(f"[WARN] {cam_id} — no homography matrix found, skipping.")
+                print(f"[WARN] {cam_id} : no homography matrix found, skipping.")
                 continue
             tracker = CameraTracker(
                 cam_id=cam_id,
@@ -341,7 +401,7 @@ class MultiCameraPipeline:
             self._trackers[cam_id] = tracker
             self._camera_order.append(cam_id)
             self._capture_status[cam_id] = "NOT OPENED"
-            print(f"[INFO] {cam_id} — tracker loaded.")
+            print(f"[INFO] {cam_id} : tracker loaded.")
 
         self._fusion = MultiCameraFusion(
             config=self._config,
@@ -352,7 +412,7 @@ class MultiCameraPipeline:
         self._violation_detector = ViolationDetector(self._config)
 
     # ------------------------------------------------------------------
-    # Public run methods
+    # Méthodes d'exécution publiques
     # ------------------------------------------------------------------
 
     def run_on_recordings(
@@ -360,6 +420,16 @@ class MultiCameraPipeline:
         max_frames: int | None = None,
         display: bool = True,
     ) -> None:
+        """Exécute le pipeline sur les vidéos enregistrées du config.
+
+        L'horodatage de chaque frame est reconstruit à partir de l'index de
+        frame et du FPS de la vidéo, afin que la fenêtre temporelle de fusion
+        reste cohérente entre caméras.
+
+        Args:
+            max_frames: Arrêt après ce nombre de frames (None = jusqu'à épuisement).
+            display: Affiche la mosaïque OpenCV annotée ('q' pour quitter).
+        """
         captures = self._open_captures(use_rtsp=False)
         if not captures:
             print("[ERR] No video captures could be opened.")
@@ -381,6 +451,7 @@ class MultiCameraPipeline:
                     print(f"[INFO] Reached max_frames={max_frames}, stopping.")
                     break
 
+                # Une frame par caméra ; les vidéos épuisées sont absentes du lot
                 frames_raw: dict[str, np.ndarray] = {}
                 for cam_id, cap in captures.items():
                     ret, frame = cap.read()
@@ -398,12 +469,17 @@ class MultiCameraPipeline:
                     fps = fps_map[cam_id]
                     timestamp = frame_count / fps
 
+                    # fix_frame ne sert ici qu'à l'affichage : process_frame
+                    # applique lui-même le correctif avant l'inférence, et les
+                    # bbox retournées sont exprimées dans l'image corrigée.
                     fixed = fix_frame(frame, cam_id, self._ar_fix)
                     frames_fixed[cam_id] = fixed
 
                     dets = self._trackers[cam_id].process_frame(frame, timestamp)
                     detections_by_cam[cam_id] = dets
 
+                # Fusion inter-caméras puis détection de violations sur les
+                # détections porteuses d'identifiants globaux
                 all_detections = self._fusion.associate(detections_by_cam)
                 new_alerts = self._violation_detector.check(all_detections)
 
@@ -450,6 +526,12 @@ class MultiCameraPipeline:
                 cv2.destroyAllWindows()
 
     def run_live(self) -> None:
+        """Exécute le pipeline en direct sur les flux RTSP du config.
+
+        Contrairement au mode enregistré, l'horodatage est l'heure de lecture
+        réelle (time.time()) et une caméra muette n'arrête pas la boucle :
+        sa dernière frame annotée reste affichée avec le statut NO FRAME.
+        """
         captures = self._open_captures(use_rtsp=True)
         if not captures:
             print("[ERR] No RTSP captures could be opened.")
@@ -477,6 +559,8 @@ class MultiCameraPipeline:
                         live_status[cam_id] = "NO FRAME"
 
                 if not frames_raw:
+                    # Aucune frame ce tour : on continue d'afficher le dernier
+                    # état connu plutôt que d'arrêter le pipeline
                     grid = _build_grid(
                         last_annotated,
                         cam_ids=self._camera_order,
@@ -494,6 +578,8 @@ class MultiCameraPipeline:
 
                 for cam_id, frame in frames_raw.items():
                     timestamp = frame_timestamps[cam_id]
+                    # Comme en mode enregistré : fix_frame ne sert qu'à
+                    # l'affichage, process_frame réapplique le correctif
                     fixed = fix_frame(frame, cam_id, self._ar_fix)
                     frames_fixed[cam_id] = fixed
 
@@ -539,10 +625,15 @@ class MultiCameraPipeline:
             cv2.destroyAllWindows()
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Méthodes internes
     # ------------------------------------------------------------------
 
     def _open_captures(self, use_rtsp: bool) -> dict[str, cv2.VideoCapture]:
+        """Ouvre une capture par caméra (vidéo enregistrée ou flux RTSP).
+
+        Les caméras sans source configurée ou dont l'ouverture échoue sont
+        écartées avec un statut explicite ; le pipeline tourne avec le reste.
+        """
         captures: dict[str, cv2.VideoCapture] = {}
         cameras_section: dict = self._config.get("cameras", {})
 
@@ -552,7 +643,7 @@ class MultiCameraPipeline:
 
             if not source:
                 label = "rtsp_url" if use_rtsp else "video_path"
-                print(f"[WARN] {cam_id} — no {label} in config, skipping.")
+                print(f"[WARN] {cam_id} : no {label} in config, skipping.")
                 continue
 
             open_result = open_capture_with_info(
@@ -563,11 +654,11 @@ class MultiCameraPipeline:
             cap = open_result.cap
             if not cap.isOpened():
                 print(
-                    f"[WARN] {cam_id} — failed to open "
+                    f"[WARN] {cam_id} : failed to open "
                     f"{'RTSP stream' if use_rtsp else 'video'}: {source}"
                 )
                 if open_result.error:
-                    print(f"[WARN] {cam_id} — open attempts: {open_result.error}")
+                    print(f"[WARN] {cam_id} : open attempts: {open_result.error}")
                 self._capture_status[cam_id] = "OPEN FAILED"
                 cap.release()
                 continue
@@ -576,7 +667,7 @@ class MultiCameraPipeline:
             backend = open_result.backend
             self._capture_status[cam_id] = "OK"
             print(
-                f"[INFO] {cam_id} — opened {'RTSP stream' if use_rtsp else 'video'} "
+                f"[INFO] {cam_id} : opened {'RTSP stream' if use_rtsp else 'video'} "
                 f"via {backend}: {open_result.source}"
             )
 
@@ -584,7 +675,13 @@ class MultiCameraPipeline:
 
     @staticmethod
     def _build_zone_polygons_by_cam(config: dict) -> dict[str, list[tuple[str, np.ndarray]]]:
-        """Project floor-plane forbidden zones into each camera image plane."""
+        """Projette les zones interdites (plan de sol) dans chaque image caméra.
+
+        Les zones sont définies en mètres ; l'homographie inverse (mètres vers
+        pixels) permet de les dessiner dans chaque vue concernée. Utilisé
+        uniquement pour l'affichage : la détection de violation se fait en
+        mètres, jamais en pixels.
+        """
         zones_by_cam: dict[str, list[tuple[str, np.ndarray]]] = {}
         for zone_id, zone_data in config.get("zones_interdites", {}).items():
             coords_m = zone_data.get("coordonnees_metres") or []
@@ -609,6 +706,7 @@ class MultiCameraPipeline:
 
     @staticmethod
     def _select_homography_matrix(config: dict, cam_id: str) -> np.ndarray | None:
+        """Retourne la matrice d'homographie de la caméra (format imbriqué ou plat), ou None."""
         homo_section = config.get("homographie", {})
         cam_entry = homo_section.get(cam_id)
         if isinstance(cam_entry, dict):
@@ -625,6 +723,7 @@ class MultiCameraPipeline:
 
     @staticmethod
     def _has_homography(config: dict, cam_id: str) -> bool:
+        """Vrai si une homographie exploitable existe pour cette caméra dans le config."""
         homo_section = config.get("homographie", {})
 
         cam_entry = homo_section.get(cam_id, None)
@@ -642,110 +741,110 @@ class MultiCameraPipeline:
 
 
 # ----------------------------------------------------------------------
-# CLI entry point
+# Point d'entrée CLI
 # ----------------------------------------------------------------------
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Multi-camera surveillance pipeline (Phase 3)."
+        description="Pipeline de surveillance multi-caméras (Phase 3)."
     )
     parser.add_argument(
         "--config",
         default=str(Path(__file__).parent / "config.yaml"),
-        help="Path to config.yaml (default: config.yaml next to pipeline.py)",
+        help="Chemin de config.yaml (défaut : config.yaml à côté de pipeline.py)",
     )
     parser.add_argument(
         "--model",
         default="../yolov8n.pt",
-        help="Path to YOLO model weights (default: ../yolov8n.pt)",
+        help="Chemin des poids du modèle YOLO (défaut : ../yolov8n.pt)",
     )
     parser.add_argument(
         "--cameras",
         default=None,
-        help="Comma-separated camera IDs to run, e.g. cam_03,cam_05,cam_07.",
+        help="Identifiants de caméras à lancer, séparés par des virgules, ex. cam_03,cam_05,cam_07.",
     )
     parser.add_argument(
         "--max-frames",
         type=int,
         default=None,
-        help="Maximum number of frames to process in recording mode.",
+        help="Nombre maximal de frames à traiter en mode enregistré.",
     )
     parser.add_argument(
         "--no-display",
         action="store_true",
-        help="Disable OpenCV display window.",
+        help="Désactive la fenêtre d'affichage OpenCV.",
     )
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Use RTSP streams instead of recorded videos.",
+        help="Utilise les flux RTSP au lieu des vidéos enregistrées.",
     )
     parser.add_argument(
         "--fusion-distance-m",
         type=float,
         default=None,
-        help="Override fusion distance threshold D in metres.",
+        help="Surcharge le seuil de distance de fusion D, en mètres.",
     )
     parser.add_argument(
         "--fusion-time-window-ms",
         type=float,
         default=None,
-        help="Override fusion time window in milliseconds.",
+        help="Surcharge la fenêtre temporelle de fusion, en millisecondes.",
     )
     parser.add_argument(
         "--device",
         default=None,
-        help="YOLO device, e.g. cuda:0 or cpu. Defaults to config detection.device.",
+        help="Périphérique YOLO, ex. cuda:0 ou cpu. Défaut : detection.device du config.",
     )
     parser.add_argument(
         "--classes",
         default=None,
-        help="Comma-separated class IDs to track, e.g. 0 for person only. Default: all classes.",
+        help="Indices de classes à suivre, séparés par des virgules, ex. 0 pour personnes seules. Défaut : toutes les classes.",
     )
     parser.add_argument(
         "--person-classes",
         default=None,
-        help="Comma-separated class IDs treated as persons for zone violations. Default: 0.",
+        help="Indices de classes traités comme personnes pour les violations de zone. Défaut : 0.",
     )
     parser.add_argument(
         "--capture-backend",
         choices=["opencv", "gstreamer"],
         default="opencv",
-        help="RTSP capture backend for live mode.",
+        help="Backend de capture RTSP pour le mode live.",
     )
     parser.add_argument(
         "--gst-latency-ms",
         type=int,
         default=100,
-        help="GStreamer rtspsrc latency in ms.",
+        help="Latence rtspsrc GStreamer, en millisecondes.",
     )
     parser.add_argument(
         "--gst-protocol",
         choices=["tcp", "udp"],
         default="tcp",
-        help="GStreamer RTSP transport protocol.",
+        help="Protocole de transport RTSP pour GStreamer.",
     )
     parser.add_argument(
         "--gst-codec",
         choices=["h264", "h265"],
         default="h264",
-        help="RTSP video codec used by the cameras.",
+        help="Codec vidéo RTSP utilisé par les caméras.",
     )
     parser.add_argument(
         "--gst-decoder",
         default="avdec_h264",
-        help="GStreamer decoder element, e.g. avdec_h264 or nvh264dec.",
+        help="Élément décodeur GStreamer, ex. avdec_h264 ou nvh264dec.",
     )
     parser.add_argument(
         "--gst-pipeline",
         choices=["decodebin", "fixed", "both"],
         default="decodebin",
-        help="GStreamer pipeline style. decodebin matches crash_test_streams.py.",
+        help="Style de pipeline GStreamer. decodebin correspond à crash_test_streams.py.",
     )
     parser.add_argument(
         "--no-ffmpeg-fallback",
         action="store_true",
-        help="Disable FFmpeg/OpenCV fallback after GStreamer failures.",
+        help="Désactive le repli FFmpeg/OpenCV après échec GStreamer.",
     )
     args = parser.parse_args()
 

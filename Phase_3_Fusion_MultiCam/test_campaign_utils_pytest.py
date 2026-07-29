@@ -1,3 +1,10 @@
+"""Tests Pytest des utilitaires de campagne (campaign_utils).
+
+Couvre la découverte des modèles entraînés (V2/V3, formats .pt et TensorRT)
+et l'écriture des CSV de détections à en-tête stable, indispensables à la
+reproductibilité des campagnes de benchmark.
+"""
+
 from pathlib import Path
 
 from campaign_utils import (
@@ -9,6 +16,7 @@ from campaign_utils import (
 
 
 def test_discover_model_specs_v2_and_v3(tmp_path: Path):
+    """La découverte doit lister chaque modèle V2/V3 dans ses deux formats (.pt et moteur TensorRT), y compris les moteurs à nom suffixé."""
     root = tmp_path / "Modelstrained"
     (root / "V2" / "yolo26n" / "weights").mkdir(parents=True)
     (root / "V2" / "yolo26n" / "weights" / "best.pt").write_text("pt")
@@ -27,6 +35,7 @@ def test_discover_model_specs_v2_and_v3(tmp_path: Path):
 
 
 def test_discover_model_specs_filters_models(tmp_path: Path):
+    """Les filtres version/format/nom doivent restreindre la découverte aux seuls modèles demandés."""
     root = tmp_path / "Modelstrained"
     for name in ["yolov8n", "yolo11s"]:
         (root / "V2" / name / "weights").mkdir(parents=True)
@@ -43,6 +52,7 @@ def test_discover_model_specs_filters_models(tmp_path: Path):
 
 
 def test_model_spec_phase2_dict():
+    """ModelSpec doit exposer le dictionnaire attendu par le pipeline Phase 2 et un run_label unique version_modele_format."""
     spec = ModelSpec(
         version="V3",
         name="rtdetr-l",
@@ -63,6 +73,7 @@ def test_model_spec_phase2_dict():
 
 
 def test_write_csv_stable_header(tmp_path: Path):
+    """write_csv doit conserver un en-tête de colonnes stable et ignorer les champs hors schéma."""
     out = tmp_path / "detections.csv"
     write_csv(
         out,

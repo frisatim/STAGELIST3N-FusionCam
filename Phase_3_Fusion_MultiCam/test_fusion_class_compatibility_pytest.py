@@ -1,3 +1,10 @@
+"""Tests Pytest de la compatibilité de classes dans la fusion multi-caméras.
+
+Vérifie que deux détections ne partagent un identifiant global que si leurs
+classes sont compatibles : cela évite de fusionner une personne avec un objet
+proche, source directe de fausses associations inter-caméras.
+"""
+
 from detection import Detection
 from fusion import MultiCameraFusion
 
@@ -32,6 +39,7 @@ def _fusion(time_window_s: float = 1.0) -> MultiCameraFusion:
 
 
 def test_same_class_inside_time_window_shares_global_id():
+    """Deux détections de même classe, proches et dans la fenêtre temporelle, doivent partager le même identifiant global."""
     fusion = _fusion(time_window_s=2.0)
     a = _det("cam_a", 1, "bouteille", 5, timestamp=1000.0)
     b = _det("cam_b", 2, "bouteille", 5, timestamp=1001.2)
@@ -42,6 +50,7 @@ def test_same_class_inside_time_window_shares_global_id():
 
 
 def test_different_classes_do_not_share_global_id_even_if_close():
+    """Deux classes différentes ne doivent jamais être fusionnées, même à position quasi identique."""
     fusion = _fusion()
     a = _det("cam_a", 1, "bouteille", 5)
     b = _det("cam_b", 2, "personne", 11)
@@ -52,6 +61,7 @@ def test_different_classes_do_not_share_global_id_even_if_close():
 
 
 def test_person_aliases_are_compatible():
+    """Les alias de la classe personne ('personne' et 'person') doivent être considérés comme compatibles."""
     fusion = _fusion()
     a = _det("cam_a", 1, "personne", 11)
     b = _det("cam_b", 2, "person", 0)
@@ -62,6 +72,7 @@ def test_person_aliases_are_compatible():
 
 
 def test_same_local_track_gets_new_global_id_when_class_changes():
+    """Si la classe d'une piste locale change, elle doit recevoir un nouvel identifiant global au lieu d'hériter de l'ancien."""
     fusion = _fusion()
     bottle = _det("cam_a", 1, "bouteille", 5)
     fusion.associate({"cam_a": [bottle]})

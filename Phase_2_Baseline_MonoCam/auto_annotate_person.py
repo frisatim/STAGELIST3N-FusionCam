@@ -1,3 +1,22 @@
+"""
+Pré-annotation automatique de la classe 'personne' sur un dataset existant.
+
+Passe YOLOv8n (poids COCO) sur toutes les images du premier dataset valide
+trouvé parmi DATASET_CANDIDATES et ajoute (en mode append, sans écraser
+les annotations existantes) une ligne YOLO par personne détectée
+(confiance >= CONFIDENCE_THRESHOLD). L'ID de la classe personne est lu
+dans le data.yaml du dataset ; à défaut, PERSON_NEW_ID_FALLBACK est
+utilisé. Utilisé pendant la construction du dataset pour éviter
+d'annoter les personnes à la main ; les boîtes restent à vérifier.
+
+Pas d'arguments CLI : les chemins et seuils sont des constantes en tête
+de fichier (DATASET_CANDIDATES, CONFIDENCE_THRESHOLD...) à adapter avant
+lancement.
+
+Lancement :
+  python auto_annotate_person.py
+"""
+
 import os
 import glob
 from ultralytics import YOLO
@@ -94,6 +113,7 @@ def _resolve_person_class_id(yaml_path):
 
 
 def auto_annotate():
+    """Détecte les personnes sur chaque image et complète les labels YOLO."""
     dataset_dir, images_dir, labels_dir, yaml_path = _find_dataset_dirs()
     if not dataset_dir:
         print(

@@ -1,3 +1,31 @@
+"""
+Fusion d'un export Roboflow (format YOLOv8) dans le dataset cible du projet.
+
+Rôle historique (ex changedataset.py) : pendant la construction du dataset
+d'entraînement, certaines classes ont été complétées avec des exports
+Roboflow (ex. cup.v1i.yolov8 pour la classe verre). Ce script recopie les
+paires image/label d'un export dans dataset/ en remappant les IDs de
+classes Roboflow vers ceux du dataset cible (défaut : 0 -> 6).
+
+Fonctionnement :
+  - détecte les splits de la source (racine train/valid/test ou split
+    direct images/ + labels/) ; par défaut tout est fusionné dans train
+    (--preserve-splits pour garder les splits d'origine) ;
+  - ne copie que les labels contenant au moins un objet d'une classe
+    mappée ; les autres lignes sont supprimées au passage ;
+  - évite toute collision de nom en suffixant __rfN si nécessaire,
+    aucune donnée existante n'est écrasée ;
+  - si la source par défaut n'existe pas, cherche automatiquement le
+    dernier export *.yolov8 dans ~/Downloads ;
+  - affiche un récapitulatif (fichiers importés, ignorés, collisions).
+
+Pour relancer :
+  python merge_roboflow_dataset.py --source chemin/export.yolov8 \\
+      --target chemin/dataset --map 0:6
+  # --map au format src:dst,src:dst ; sans --map, CLASS_MAPPING_DEFAULT
+  # (constante en tête de fichier) est utilisé.
+"""
+
 import argparse
 import shutil
 from pathlib import Path
@@ -238,6 +266,7 @@ def merge_datasets(source: Path, target: Path, class_mapping: dict[int, int], me
 
 
 def parse_args():
+    """Déclare et parse les options CLI (source, cible, mapping, splits)."""
     parser = argparse.ArgumentParser(description="Fusion de dataset Roboflow vers dataset YOLO local")
     parser.add_argument(
         "--source",
@@ -266,6 +295,7 @@ def parse_args():
 
 
 def main() -> int:
+    """Point d'entrée : valide le mapping puis lance la fusion (code retour shell)."""
     args = parse_args()
     try:
         class_mapping = parse_mapping(args.map)

@@ -1,8 +1,12 @@
-"""Create the external heavy-data delivery layout.
+"""Prépare l'arborescence externe de livraison des données lourdes.
 
-This script intentionally creates directories only. It does not copy datasets,
-videos or model weights automatically because those assets can be very large and
-should be selected deliberately before delivery.
+Ce script crée volontairement les répertoires seulement (avec .gitkeep) : il ne
+copie ni datasets, ni vidéos, ni poids de modèles, car ces fichiers très
+volumineux doivent être sélectionnés délibérément avant la livraison. Seules
+les vérités terrain (JSON légers) sont copiées si elles sont présentes.
+
+Exemple :
+    python scripts/prepare_delivery_layout.py --data-dir ../STAGELIST3N-FusionCam-data
 """
 
 from __future__ import annotations
@@ -28,21 +32,25 @@ DEFAULT_DIRS = [
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Prepare FusionCam delivery layout.")
+    """Analyse les arguments de la ligne de commande."""
+    parser = argparse.ArgumentParser(description="Prépare l'arborescence de livraison FusionCam.")
     parser.add_argument(
         "--data-dir",
         default="../STAGELIST3N-FusionCam-data",
-        help="External heavy-data directory to create.",
+        help="Répertoire externe de données lourdes à créer.",
     )
     return parser.parse_args()
 
 
 def main() -> None:
+    """Crée l'arborescence de livraison, un README_DATA.md décrivant le contenu
+    attendu, puis copie les vérités terrain si elles existent dans le dépôt."""
     args = parse_args()
     repo_root = Path(__file__).resolve().parent.parent
     root = Path(args.data_dir).resolve()
     root.mkdir(parents=True, exist_ok=True)
 
+    # Créer chaque répertoire attendu avec un .gitkeep pour le conserver vide.
     for rel in DEFAULT_DIRS:
         path = root / rel
         path.mkdir(parents=True, exist_ok=True)
@@ -64,6 +72,7 @@ def main() -> None:
             encoding="utf-8",
         )
 
+    # Copier les vérités terrain (fichiers JSON légers) sans écraser l'existant.
     gt_people_src = repo_root / "ground_truth" / "gt_people.json"
     gt_objects_src = repo_root / "ground_truth" / "gt_objects_tad_dataset_objets_HD.json"
     if not gt_objects_src.exists():

@@ -1,3 +1,5 @@
+"""Tests des métriques de latence et de synchronisation caméras sur des CSV de campagne minimaux."""
+
 from pathlib import Path
 
 from Phase_4_Network_Latency.latency_metrics import (
@@ -14,6 +16,7 @@ def _write(path: Path, content: str):
 
 
 def test_analyze_sync_events_detects_camera_drop(tmp_path: Path):
+    """Une caméra qui cesse d'émettre en cours de run est marquée décrochée, avec ses trames manquantes."""
     sync_csv = tmp_path / "sync_events.csv"
     _write(
         sync_csv,
@@ -39,6 +42,7 @@ V4,yolov8s,fp32_engine,4,cam_02,4,0,,0.4,,FFMPEG
 
 
 def test_summarize_phase3_run_reports_latency_fps_and_fusion(tmp_path: Path):
+    """Le bilan d'un run reprend correctement cadence effective, latences et métriques de fusion."""
     _write(
         tmp_path / "phase3" / "summary.csv",
         """
@@ -90,6 +94,7 @@ V4,yolov8s,fp32_engine,4,cam_03,4,0,,0.4,,FFMPEG
 
 
 def test_analyze_fusion_links_counts_frames_not_links(tmp_path: Path):
+    """L'analyse des liens de fusion compte les trames distinctes, pas les liens, et identifie la paire dominante."""
     fusion_csv = tmp_path / "fusion_links.csv"
     _write(
         fusion_csv,
@@ -110,6 +115,7 @@ V4,yolov8s,fp32_engine,11,1.1,3,cam_03,5,cam_05,6,0.7
 
 
 def test_compare_runs_aggregates_phase4_health_metrics(tmp_path: Path):
+    """La comparaison de deux runs moyenne les p95 de latence et calcule le taux de runs avec fusion."""
     _write(
         tmp_path / "run_a" / "phase3" / "summary.csv",
         """

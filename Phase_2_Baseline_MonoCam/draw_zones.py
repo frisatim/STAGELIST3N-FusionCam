@@ -331,7 +331,7 @@ def main():
     zones = load_zones_json()
     if cam_id in zones:
         n = len(zones[cam_id])
-        print(f"  [INFO] Zone existante pour {cam_id} ({n} points) — sera ecrasee si tu sauvegardes.")
+        print(f"  [INFO] Zone existante pour {cam_id} ({n} points) : sera ecrasee si tu sauvegardes.")
 
     print()
     run_drawer(source, cam_id)

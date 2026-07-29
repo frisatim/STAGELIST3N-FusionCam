@@ -1,4 +1,9 @@
-"""Pytest checks for forbidden-zone violation detection."""
+"""Tests Pytest de la détection de violations de zones interdites.
+
+Couvre l'intrusion de personnes en zone interdite (décision par class_id) et
+la confirmation multi-caméras des alertes (personnes et objets interdits),
+au cœur de la fiabilité des alertes émises en production.
+"""
 
 from __future__ import annotations
 
@@ -48,6 +53,7 @@ def _detection(
 
 
 def test_person_zone_violation_uses_class_id_not_only_label():
+    """Une personne en zone interdite déclenche l'alerte même avec un label atypique : la décision repose sur class_id, pas sur le nom de classe."""
     detector = ViolationDetector(_config())
 
     alerts = detector.check([_detection(0, "0", (1.0, 1.0))])
@@ -59,6 +65,7 @@ def test_person_zone_violation_uses_class_id_not_only_label():
 
 
 def test_bottom_center_outside_zone_does_not_trigger_violation():
+    """Une personne dont le point pied est hors de la zone interdite ne doit déclencher aucune alerte."""
     detector = ViolationDetector(_config())
 
     alerts = detector.check([_detection(0, "person", (3.0, 3.0))])
@@ -67,6 +74,7 @@ def test_bottom_center_outside_zone_does_not_trigger_violation():
 
 
 def test_person_class_ids_can_be_configured_for_custom_models():
+    """Un modèle personnalisé peut déclarer d'autres class_id de personne via la config (ex. classe 'worker')."""
     config = _config()
     config["detection"] = {"person_class_ids": [2]}
     detector = ViolationDetector(config)
@@ -78,6 +86,7 @@ def test_person_class_ids_can_be_configured_for_custom_models():
 
 
 def test_person_zone_violation_defaults_to_single_camera_safety_mode():
+    """Par défaut (mode sécurité), une seule caméra suffit à confirmer une intrusion de personne."""
     config = _config()
     config["zones_interdites"]["zone_1"]["cameras_concernees"] = [
         "cam_02",
@@ -95,6 +104,7 @@ def test_person_zone_violation_defaults_to_single_camera_safety_mode():
 
 
 def test_person_zone_violation_can_require_half_zone_cameras():
+    """Avec un ratio configuré, l'alerte personne exige la confirmation par plusieurs caméras couvrant la zone."""
     config = _config()
     config["zones_interdites"]["zone_1"]["cameras_concernees"] = [
         "cam_02",
@@ -121,6 +131,7 @@ def test_person_zone_violation_can_require_half_zone_cameras():
 
 
 def test_forbidden_object_can_require_multi_camera_confirmation():
+    """Un objet interdit vu par une seule caméra reste une alerte faible ; deux caméras la confirment, sans ré-émission en double."""
     config = _config()
     config["alerting"] = {"object_min_camera_votes": 2}
     detector = ViolationDetector(config)
@@ -143,6 +154,7 @@ def test_forbidden_object_can_require_multi_camera_confirmation():
 
 
 def test_forbidden_object_defaults_to_weak_then_confirmed_mode():
+    """Par défaut, une alerte objet passe de 'weak' (une caméra) à 'confirmed' (deux caméras)."""
     detector = ViolationDetector(_config())
 
     single_camera = [_detection(4, "perceuse", (1.0, 1.0), cam_id="cam_02")]
@@ -160,6 +172,7 @@ def test_forbidden_object_defaults_to_weak_then_confirmed_mode():
 
 
 def test_weak_object_alerts_can_be_disabled():
+    """Les alertes objet faibles peuvent être désactivées : une seule caméra ne produit alors aucune alerte."""
     config = _config()
     config["alerting"] = {
         "object_min_camera_votes": 2,

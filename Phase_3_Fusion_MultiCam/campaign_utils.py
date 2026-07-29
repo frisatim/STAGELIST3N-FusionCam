@@ -1,4 +1,30 @@
-"""Shared helpers for Phase 2/Phase 3 evaluation campaigns."""
+"""
+Boîte à outils partagée des campagnes d'évaluation Phase 2 / Phase 3.
+
+Ce module est le socle des deux points d'entrée officiels de la Phase 3 :
+run_recorded_campaign.py (rejeu de vidéos enregistrées) et
+run_live_campaign.py (flux RTSP en direct). Il regroupe quatre grandes parties :
+
+- Découverte des modèles entraînés : parcours de
+  Phase_2_Baseline_MonoCam/Modelstrained (organisation à plat V2/V3, ou par
+  variante de dataset en V4), sélection des poids PyTorch (.pt) et des moteurs
+  TensorRT FP32 (ModelSpec, discover_model_specs, iter_model_dirs).
+
+- Exécution des campagnes : la classe Phase3Campaign instancie la chaîne
+  complète (un tracker par caméra, fusion multi-caméras, détecteur de
+  violations) et déroule la boucle recorded ou live en accumulant les lignes
+  CSV (détections, alertes, liens de fusion, synchronisation, stabilité des
+  tracks, trace de latence).
+
+- Métriques TRD / TAD : appariement des alertes aux événements de vérité
+  terrain avec tolérance temporelle (match_alerts_to_gt,
+  compute_phase3_metrics), regroupement des faux positifs TAD aligné sur la
+  méthodologie de la Phase 2 (TAD_FP_MERGE_WINDOW_S).
+
+- Écriture des sorties et utilitaires : CSV (write_csv, merge_csvs),
+  manifestes JSON, journalisation (append_log, Tee, stdout_to_log), lancement
+  de sous-processus (audit de calibration, ablations du seuil de fusion).
+"""
 
 from __future__ import annotations
 
@@ -20,23 +46,28 @@ import numpy as np
 import yaml
 
 
+# Racines du projet et emplacements par défaut : poids Phase 2, config et rapports Phase 3.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PHASE2_DIR = PROJECT_ROOT / "Phase_2_Baseline_MonoCam"
 PHASE3_DIR = PROJECT_ROOT / "Phase_3_Fusion_MultiCam"
 MODELSTRAINED_DIR = PHASE2_DIR / "Modelstrained"
 DEFAULT_CONFIG = PHASE3_DIR / "config.yaml"
 DEFAULT_REPORTS_DIR = PHASE3_DIR / "reports"
-TAD_FP_MERGE_WINDOW_S = 3.0  # matches Phase_2_Baseline_MonoCam/evaluate_tad.py FP_MERGE_WINDOW_S
+# Fenêtre (s) de regroupement des faux positifs TAD, alignée sur FP_MERGE_WINDOW_S
+# de Phase_2_Baseline_MonoCam/evaluate_tad.py pour garder les chiffres comparables.
+TAD_FP_MERGE_WINDOW_S = 3.0
 
 
 def first_existing_path(*paths: Path) -> Path:
-    """Return the first existing path, or the historical default if none exist."""
+    """Retourne le premier chemin existant, ou le premier de la liste (défaut historique) si aucun n'existe."""
     for path in paths:
         if path.exists():
             return path
     return paths[0]
 
 
+# Vérités terrain par défaut : plusieurs emplacements historiques sont tolérés,
+# le premier fichier existant l'emporte.
 DEFAULT_GT_OBJECTS_TAD = first_existing_path(
     PROJECT_ROOT / "dataset_objets_HD" / "gt_objects_tad.json",
     PROJECT_ROOT / "ground_truth" / "gt_objects_tad_dataset_objets_HD.json",
@@ -46,8 +77,10 @@ DEFAULT_GT_PEOPLE = first_existing_path(
     PROJECT_ROOT / "gt_people.json",
     PROJECT_ROOT / "ground_truth" / "gt_people.json",
 )
-PERSON_CLASS_ID = 11
+PERSON_CLASS_ID = 11  # identifiant de la classe "personne" dans les datasets entraînés
 
+# Zone 1 (salle de référence) : caméras couvrantes, vidéos enregistrées associées
+# et identifiants correspondants dans les fichiers de vérité terrain.
 ZONE1_CAMERAS = ["cam_02", "cam_03", "cam_05", "cam_07"]
 ZONE1_VIDEO_MAP = {
     "cam_02": PROJECT_ROOT / "recordings/recordings/Camera_2_2.3_20260506_131002.mp4",
@@ -62,6 +95,14 @@ ZONE1_GT_ID_MAP = {
 
 @dataclass(frozen=True)
 class ModelSpec:
+    """Modèle entraîné découvert dans Modelstrained, prêt à être exécuté.
+
+    Combine la version d'entraînement (V2, V3...), le nom du modèle, le format
+    d'exécution (poids PyTorch "pt" ou moteur TensorRT "fp32_engine") et le
+    chemin des poids. Sert à lancer les campagnes Phase 3 et à générer la
+    liste de modèles consommée par les scripts d'évaluation de la Phase 2.
+    """
+
     version: str
     name: str
     subdir: str
@@ -73,9 +114,12 @@ class ModelSpec:
     dataset_variant: str = ""
 
     def phase2_dict(self) -> dict[str, str]:
+        """Sous-ensemble minimal attendu par les scripts d'évaluation de la Phase 2."""
         return {"name": self.name, "subdir": self.subdir, "type": self.model_type}
 
     def manifest_dict(self) -> dict[str, Any]:
+        """Représentation complète pour le manifeste JSON de campagne (chemin
+        des poids en texte, avec indicateur d'existence sur disque)."""
         data = asdict(self)
         data["weights_path"] = str(self.weights_path)
         data["exists"] = self.weights_path.exists()
@@ -83,6 +127,8 @@ class ModelSpec:
 
     @property
     def run_label(self) -> str:
+        """Étiquette unique du run (version, variante éventuelle, nom, format),
+        utilisée pour nommer les dossiers et fichiers de sortie."""
         parts = [self.version]
         if self.dataset_variant:
             parts.append(self.dataset_variant)
@@ -91,22 +137,33 @@ class ModelSpec:
 
 
 def parse_csv_arg(raw: str | None, default: Iterable[str]) -> list[str]:
+    """Découpe un argument CLI de la forme "a,b,c" en liste, ou retourne la valeur par défaut si vide."""
     if not raw:
         return list(default)
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
 def timestamped_campaign_dir(prefix: str = "campaign_zone1") -> Path:
+    """Construit un chemin de dossier de campagne horodaté sous reports/ (ex: campaign_zone1_20260506_131002)."""
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return DEFAULT_REPORTS_DIR / f"{prefix}_{stamp}"
 
 
 def infer_model_type(name: str) -> str:
+    """Déduit le type de modèle ("rtdetr" ou "yolo") à partir de son nom de dossier."""
     return "rtdetr" if name.lower().startswith("rtdetr") else "yolo"
 
 
 def find_fp32_engine(weights_dir: Path, version: str) -> tuple[Path, str] | None:
-    """Return the FP32 TensorRT engine path plus Phase 2 suffix, if present."""
+    """Cherche le moteur TensorRT FP32 dans le dossier de poids d'un modèle.
+
+    L'ordre des candidats dépend de la version d'entraînement : en V3,
+    best_fp32_best.engine est prioritaire sur best.engine ; ailleurs c'est
+    l'inverse (conventions d'export différentes selon les versions).
+
+    Returns:
+        Tuple (chemin du moteur, suffixe Phase 2 associé), ou None si absent.
+    """
     version_key = version.upper()
     if version_key == "V3":
         candidates = [
@@ -130,7 +187,16 @@ def iter_model_dirs(
     version_dir: Path,
     dataset_variants: Iterable[str] | None = None,
 ) -> Iterable[tuple[Path, str, str]]:
-    """Yield model directories for both flat V2/V3 and nested V4 layouts."""
+    """Énumère les dossiers de modèles d'une version d'entraînement.
+
+    Gère deux organisations de Modelstrained : V2/V3 à plat (un dossier par
+    modèle contenant weights/) et V4 imbriquée par variante de dataset
+    (person_objects, objects_only).
+
+    Yields:
+        Tuples (dossier du modèle, sous-chemin relatif, variante de dataset).
+    """
+    # Organisation à plat (V2/V3) : tout sous-dossier contenant weights/ est un modèle.
     direct_dirs = sorted(
         p for p in version_dir.iterdir()
         if p.is_dir() and (p / "weights").is_dir()
@@ -138,9 +204,12 @@ def iter_model_dirs(
     for model_dir in direct_dirs:
         yield model_dir, model_dir.name, ""
 
+    # Une organisation à plat exclut l'organisation par variantes de dataset.
     if direct_dirs:
         return
 
+    # Organisation imbriquée (V4) : version/<variante>/<modèle>. Sans variante
+    # demandée, la première variante préférée présente est retenue.
     requested_variants = list(dataset_variants or [])
     if not requested_variants:
         for preferred in ("person_objects", "objects_only"):
@@ -163,7 +232,16 @@ def discover_model_specs(
     modelstrained_dir: Path = MODELSTRAINED_DIR,
     dataset_variants: Iterable[str] | None = None,
 ) -> list[ModelSpec]:
-    """Discover trained weights for campaign execution."""
+    """Découvre les poids entraînés disponibles pour une campagne.
+
+    Parcourt Modelstrained/<version>/ et produit un ModelSpec par couple
+    (modèle, format) demandé : poids PyTorch (best.pt) et/ou moteur TensorRT
+    FP32. Les filtres versions, formats et model_names restreignent la
+    sélection ; model_names vide signifie "tous les modèles".
+
+    Returns:
+        Liste de ModelSpec dont les poids existent sur disque.
+    """
     selected = set(model_names or [])
     wanted_formats = set(formats)
     specs: list[ModelSpec] = []
@@ -215,6 +293,8 @@ def discover_model_specs(
 
 
 def write_phase2_specs(specs: list[ModelSpec], path: Path) -> None:
+    """Écrit la liste des modèles au format JSON consommé par les scripts de la
+    Phase 2, dédoublonnée par nom (le format pt/engine n'y figure pas)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     unique: dict[str, dict[str, str]] = {}
     for spec in specs:
@@ -226,6 +306,7 @@ def write_phase2_specs(specs: list[ModelSpec], path: Path) -> None:
 
 
 def load_gt_events(gt_path: Path, camera_id: str) -> list[dict[str, Any]]:
+    """Charge la vérité terrain et ne garde que les événements de la caméra demandée (champ id_camera)."""
     with open(gt_path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
     return [row for row in data if row.get("id_camera") == camera_id]
@@ -238,6 +319,12 @@ def precheck_campaign_inputs(
     tad_gt_path: Path = DEFAULT_GT_OBJECTS_TAD,
     strict_tad: bool = True,
 ) -> None:
+    """Vérifie avant campagne que vidéos et vérités terrain sont disponibles.
+
+    Échoue immédiatement (SystemExit) si une vidéo manque ou si une caméra n'a
+    aucun événement GT TRD. Le contrôle TAD peut être désactivé (strict_tad à
+    False) quand la GT objets n'est pas encore annotée pour ces caméras.
+    """
     missing_videos = [str(video_map[cam]) for cam in cameras if not video_map[cam].exists()]
     if missing_videos:
         raise SystemExit("[ERREUR] Videos introuvables:\n  " + "\n  ".join(missing_videos))
@@ -263,6 +350,7 @@ def precheck_campaign_inputs(
 
 
 def write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> None:
+    """Écrit une liste de dicts en CSV UTF-8, en ignorant les clés hors fieldnames."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")
@@ -272,12 +360,15 @@ def write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> 
 
 
 def append_log(log_path: Path, line: str) -> None:
+    """Ajoute une ligne au fichier de log (créé au besoin)."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a", encoding="utf-8") as fh:
         fh.write(line.rstrip() + "\n")
 
 
 def normalize_class(name: str) -> str:
+    """Normalise un nom de classe (suppression des accents, minuscules) pour
+    comparer GT et détections malgré les variations d'orthographe."""
     import unicodedata
 
     nfkd = unicodedata.normalize("NFKD", name)
@@ -285,10 +376,12 @@ def normalize_class(name: str) -> str:
 
 
 def safe_div(num: float, den: float) -> float:
+    """Division protégée : retourne 0.0 si le dénominateur est nul."""
     return num / den if den else 0.0
 
 
 def summarize_latencies(latencies_s: list[float]) -> dict[str, float]:
+    """Résume les latences d'inférence (moyenne, médiane, p95, max) en millisecondes."""
     if not latencies_s:
         return {
             "latency_mean_ms": 0.0,
@@ -306,6 +399,7 @@ def summarize_latencies(latencies_s: list[float]) -> dict[str, float]:
 
 
 def _id_to_color(track_id: int) -> tuple[int, int, int]:
+    """Couleur pseudo-aléatoire stable pour un identifiant de track (affichage)."""
     rng = np.random.default_rng(track_id * 97 + 13)
     return tuple(int(c) for c in rng.integers(80, 255, 3))
 
@@ -317,6 +411,7 @@ def _draw_label(
     y: int,
     color: tuple[int, int, int],
 ) -> None:
+    """Dessine une étiquette texte sur fond coloré au-dessus d'une bounding box."""
     font = cv2.FONT_HERSHEY_SIMPLEX
     scale, thick = 0.45, 1
     (tw, th), baseline = cv2.getTextSize(text, font, scale, thick)
@@ -326,7 +421,13 @@ def _draw_label(
 
 
 def cluster_unmatched_times(times: list[float], merge_window_s: float) -> int:
-    """Count temporally close unmatched alerts as one FP event, not one per frame."""
+    """Regroupe les alertes non appariées en événements de faux positif distincts.
+
+    Une détection parasite persistante émettrait une alerte par frame, soit des
+    centaines de FP pour un seul événement réel. Les instants séparés de moins
+    de merge_window_s sont donc comptés comme un seul événement, comme le fait
+    evaluate_tad.py en Phase 2.
+    """
     if not times:
         return 0
     ordered = sorted(times)
@@ -345,10 +446,26 @@ def match_alerts_to_gt(
     tolerance_s: float = 10.0,
     fp_merge_window_s: float = 0.0,
 ) -> dict[str, Any]:
+    """Apparie les alertes aux événements GT et calcule les métriques associées.
+
+    Chaque événement GT est converti en secondes (trame gt_frame_key / fps),
+    puis apparié à l'alerte non consommée la plus proche dans une fenêtre de
+    plus ou moins tolerance_s (10 s par défaut). Le délai signé (alerte moins
+    GT) alimente les statistiques de réactivité TRD/TAD. Les alertes restantes
+    comptent en faux positifs, regroupées par fenêtre temporelle si
+    fp_merge_window_s > 0 (cas TAD, pour ne pas compter un FP par frame).
+
+    Returns:
+        Dict avec les comptes (GT, appariés, manqués, FP), précision, rappel,
+        F1 et les délais metric_median / metric_p95 / metric_mean (None si
+        aucun appariement).
+    """
     gt_times = [float(ev[gt_frame_key]) / fps for ev in gt_events]
     unmatched_alerts = set(range(len(alert_times)))
     delays: list[float] = []
     matched = 0
+    # Appariement glouton : chaque événement GT consomme l'alerte disponible la
+    # plus proche dans la fenêtre de tolérance (une alerte ne sert qu'une fois).
     for gt_time in gt_times:
         candidates = [
             (idx, alert_times[idx] - gt_time)
@@ -361,6 +478,8 @@ def match_alerts_to_gt(
         unmatched_alerts.remove(idx)
         matched += 1
         delays.append(delay)
+    # Les alertes jamais appariées comptent en faux positifs, regroupées en
+    # événements si une fenêtre de fusion est fournie (cas TAD).
     if fp_merge_window_s > 0:
         fp = cluster_unmatched_times([alert_times[idx] for idx in unmatched_alerts], fp_merge_window_s)
     else:
@@ -384,6 +503,8 @@ def match_alerts_to_gt(
 
 
 class Tee:
+    """Duplique chaque écriture vers plusieurs flux (console et fichier de log)."""
+
     def __init__(self, *streams):
         self.streams = streams
 
@@ -399,6 +520,16 @@ class Tee:
 
 
 class Phase3Campaign:
+    """Exécute une campagne Phase 3 complète pour un modèle donné.
+
+    Instancie la chaîne de traitement par caméra (détection + ByteTrack +
+    homographie via CameraTracker), la fusion multi-caméras et le détecteur de
+    violations, puis déroule la boucle en mode recorded (rejeu de vidéos
+    synchronisées) ou live (flux RTSP). Les données produites (détections,
+    alertes, liens de fusion, synchronisation, trace de latence) sont
+    accumulées en mémoire puis écrites en CSV par write_outputs().
+    """
+
     def __init__(
         self,
         config_path: Path,
@@ -413,6 +544,14 @@ class Phase3Campaign:
         metadata_publisher: Any | None = None,
         latency_trace_path: Path | None = None,
     ) -> None:
+        """Charge la configuration, applique les surcharges et construit la chaîne.
+
+        Args:
+            confidence: seuil de confiance imposé au détecteur (None conserve la config).
+            alerting_overrides: surcharges de la section alerting (les valeurs None sont ignorées).
+            metadata_publisher: éditeur optionnel de métadonnées temps réel (mode live).
+            latency_trace_path: si fourni, active la trace de latence détaillée par frame.
+        """
         from fusion import MultiCameraFusion
         from geometry_fix import load_aspect_fix
         from tracker import CameraTracker
@@ -420,6 +559,8 @@ class Phase3Campaign:
 
         with open(config_path, "r", encoding="utf-8") as fh:
             self.config = yaml.safe_load(fh) or {}
+        # La classe personne est imposée pour que TRD et fusion restent
+        # cohérents quel que soit le modèle chargé.
         self.config.setdefault("detection", {})["person_class_ids"] = [PERSON_CLASS_ID]
         if confidence is not None:
             self.config.setdefault("detection", {})["confidence"] = confidence
@@ -455,6 +596,8 @@ class Phase3Campaign:
             for cam_id in cameras
         }
 
+        # Accumulateurs des lignes CSV et état interne (suivi des tracks,
+        # traînées de points au sol pour l'affichage, latences d'inférence).
         self.detection_rows: list[dict[str, Any]] = []
         self.alert_rows: list[dict[str, Any]] = []
         self.fusion_rows: list[dict[str, Any]] = []
@@ -468,6 +611,12 @@ class Phase3Campaign:
         self.frame_count = 0
 
     def _record_detections(self, frame_idx: int, detections: list[Any]) -> None:
+        """Enregistre les détections fusionnées d'une frame et les liens inter-caméras.
+
+        Met à jour l'état de chaque track local (âge, changements de global_id)
+        et produit une ligne CSV par détection, plus une version brute allégée
+        (raw_detection_rows) réutilisée par l'ablation opérationnelle.
+        """
         by_gid: dict[int, list[Any]] = {}
         for det in detections:
             key = (det.cam_id, det.track_id)
@@ -486,6 +635,8 @@ class Phase3Campaign:
             )
             state["age"] += 1
             state["last_frame"] = frame_idx
+            # Un changement de global_id sur un même track local compte comme
+            # un switch d'identité (indicateur d'instabilité de la fusion).
             if det.global_id != state["last_global_id"]:
                 if state["last_global_id"] is not None and det.global_id is not None:
                     state["global_id_switches"] += 1
@@ -534,6 +685,9 @@ class Phase3Campaign:
                 }
             )
 
+        # Liens de fusion : pour chaque global_id vu par au moins deux caméras
+        # sur la frame, une ligne par paire de caméras distinctes (écart
+        # temporel et distance au sol observés entre les deux détections).
         for gid, dets in by_gid.items():
             if len({d.cam_id for d in dets}) < 2:
                 continue
@@ -568,6 +722,12 @@ class Phase3Campaign:
                     )
 
     def _record_alerts(self, frame_idx: int, alerts: list[Any], log_path: Path) -> None:
+        """Journalise chaque alerte et l'ajoute aux lignes CSV.
+
+        Le niveau d'alerte est conservé dans alert_level : "weak" (objet vu par
+        une seule caméra) ou "confirmed" (confirmation multi-caméras), avec
+        "confirmed" par défaut pour les alertes sans ce champ.
+        """
         for alert in alerts:
             append_log(log_path, f"[ALERT] {alert}")
             x_m, y_m = alert.position_m
@@ -598,6 +758,15 @@ class Phase3Campaign:
         display: bool,
         log_path: Path,
     ) -> dict[str, Any]:
+        """Boucle de campagne sur vidéos enregistrées.
+
+        Lit les vidéos des caméras en pas à pas synchronisé (une frame par
+        caméra et par itération) ; les timestamps sont reconstruits à partir de
+        l'index de frame et du FPS de chaque vidéo.
+
+        Returns:
+            Le résumé de campagne (voir summary()).
+        """
         caps: dict[str, cv2.VideoCapture] = {}
         fps_map: dict[str, float] = {}
         for cam_id in self.cameras:
@@ -609,6 +778,9 @@ class Phase3Campaign:
             fps_map[cam_id] = fps if fps > 0 else 25.0
 
         try:
+            # Avance synchronisée : une frame par caméra et par itération ; la
+            # campagne s'arrête dès qu'un flux est épuisé (vidéo la plus courte)
+            # ou que max_frames est atteint.
             while True:
                 if max_frames is not None and self.frame_count >= max_frames:
                     break
@@ -643,10 +815,29 @@ class Phase3Campaign:
         record_fps: float = 25.0,
         display_mode: str = "annotated",
     ) -> dict[str, Any]:
+        """Boucle de campagne sur flux RTSP en direct, bornée par duration_s.
+
+        À chaque itération : lecture d'une frame par caméra (avec reconnexion
+        automatique en cas d'échec), réenregistrement vidéo optionnel
+        accompagné d'événements de synchronisation, traitement complet
+        (_process_frames), affichage optionnel. Chaque étape est horodatée pour
+        alimenter la trace de latence et les métadonnées temps réel.
+
+        Args:
+            capture_options: options passées à open_capture_with_info (backend, transport...).
+            record_dir: si fourni, chaque caméra est réenregistrée en MP4 dans ce dossier.
+            record_fps: FPS d'écriture des vidéos réenregistrées.
+            display_mode: "annotated" (zones, boîtes, traînées) ou affichage brut.
+
+        Returns:
+            Le résumé de campagne (voir summary()).
+        """
         from video_capture import open_capture_with_info
 
         caps: dict[str, cv2.VideoCapture] = {}
         capture_backends: dict[str, str] = {}
+        # Ouverture des flux RTSP : une caméra en échec est journalisée sans
+        # bloquer la campagne, mais au moins un flux ouvert est requis.
         for cam_id in self.cameras:
             source = self.config.get("cameras", {}).get(cam_id, {}).get("rtsp_url")
             result = open_capture_with_info(str(source), live=True, options=capture_options)
@@ -662,6 +853,8 @@ class Phase3Campaign:
             raise SystemExit("[ERREUR] Aucun flux RTSP ouvert.")
 
         started = time.time()
+        # FPS nominal (inutilisé en live : les timestamps sont des horloges
+        # murales) ; les écrivains vidéo sont créés à la première frame reçue.
         fps_map = {cam_id: 25.0 for cam_id in caps}
         writers: dict[str, cv2.VideoWriter] = {}
         video_paths: dict[str, Path] = {}
@@ -676,6 +869,9 @@ class Phase3Campaign:
                 loop_start_epoch = time.time()
                 frames_raw = {}
                 latency_trace_by_cam: dict[str, dict[str, Any]] = {}
+                # Lecture d'une frame par caméra, chronométrée deux fois :
+                # perf_counter pour les durées, epoch pour recaler les étapes
+                # entre elles dans la trace de latence.
                 for cam_id, cap in caps.items():
                     read_start_perf = time.perf_counter()
                     read_start_epoch = time.time()
@@ -696,6 +892,9 @@ class Phase3Campaign:
                         frames_raw[cam_id] = frame
                         continue
 
+                    # Échec de lecture : tentative de reconnexion immédiate.
+                    # Même en échec, le flux reste dans caps pour être retenté
+                    # au tour de boucle suivant.
                     append_log(log_path, f"[WARN] {cam_id} frame read failed, reconnecting...")
                     cap.release()
                     source = self.config.get("cameras", {}).get(cam_id, {}).get("rtsp_url")
@@ -712,8 +911,14 @@ class Phase3Campaign:
                         caps[cam_id] = result.cap
                         append_log(log_path, f"[WARN] {cam_id} reconnect failed: {result.error}")
                 if frames_raw:
+                    # Instant où le lot de frames est complet : référence de la
+                    # latence bout en bout (capture -> métadonnées).
                     frame_wall_time = time.time()
                     batch_ready_epoch = frame_wall_time
+                    # Réenregistrement optionnel : l'écrivain est créé à la
+                    # première frame (dimensions alors connues) et chaque
+                    # écriture produit un événement de synchronisation reliant
+                    # frame de campagne, frame vidéo et horodatage mur.
                     if record_dir:
                         for cam_id, frame in frames_raw.items():
                             if cam_id not in writers:
@@ -764,6 +969,8 @@ class Phase3Campaign:
                         latency_trace_by_cam=latency_trace_by_cam,
                         batch_ready_epoch=batch_ready_epoch,
                     )
+                    # display_ms et total_loop_ms sont mesurés ici puis
+                    # réinjectés a posteriori dans les lignes de trace de la frame.
                     display_ms = 0.0
                     stop_display = False
                     if display:
@@ -795,9 +1002,18 @@ class Phase3Campaign:
         latency_trace_by_cam: dict[str, dict[str, Any]] | None = None,
         batch_ready_epoch: float | None = None,
     ) -> None:
+        """Traite un lot de frames synchronisées : détection, fusion, alertes.
+
+        Pour chaque caméra, le tracker produit ses détections ; la fusion
+        associe ensuite les détections inter-caméras en global_id, puis le
+        détecteur de violations est évalué sur le résultat fusionné. Chaque
+        étape est chronométrée pour la trace de latence et les métadonnées.
+        """
         detections_by_cam: dict[str, list[Any]] = {}
         tracker_timings: dict[str, dict[str, Any]] = {}
         for cam_id, frame in frames_raw.items():
+            # En live, le timestamp est l'horloge murale ; en recorded, il est
+            # reconstruit depuis l'index de frame et le FPS de la vidéo.
             timestamp = time.time() if live else self.frame_count / fps_map.get(cam_id, 25.0)
             t0 = time.perf_counter()
             inference_start_epoch = time.time()
@@ -818,6 +1034,8 @@ class Phase3Campaign:
         fused = self.fusion.associate(detections_by_cam)
         fusion_end_perf = time.perf_counter()
         fusion_end_epoch = time.time()
+        # Mémorise les dernières détections par caméra et les traînées de
+        # points au sol (limitées à 60 points) pour l'affichage annoté.
         self.last_detections_by_cam = {}
         for det in fused:
             self.last_detections_by_cam.setdefault(det.cam_id, []).append(det)
@@ -876,6 +1094,13 @@ class Phase3Campaign:
         alerts_ms: float,
         metadata_start_epoch: float,
     ) -> dict[str, Any]:
+        """Agrège les chronométrages d'une frame pour le payload de métadonnées.
+
+        Résume les durées de capture, d'inférence, de fusion et d'alerting,
+        ainsi que la latence bout en bout capture -> métadonnées : pire cas
+        (depuis la capture la plus ancienne) et dernier cas (depuis la plus
+        récente).
+        """
         def clean_ms(value: float | int | None) -> float:
             return round(float(value or 0.0), 3)
 
@@ -939,6 +1164,7 @@ class Phase3Campaign:
         alerts: list[Any],
         timing: dict[str, Any] | None = None,
     ) -> None:
+        """Publie détections et alertes de la frame vers l'éditeur de métadonnées, s'il est configuré."""
         if not self.metadata_publisher:
             return
         from metadata_publisher import alert_to_metadata, detection_to_metadata
@@ -978,6 +1204,13 @@ class Phase3Campaign:
         metadata_end_epoch: float,
         metadata_ms: float,
     ) -> None:
+        """Ajoute une ligne de trace de latence par caméra pour la frame courante.
+
+        Chaque ligne détaille horodatages et durées de toutes les étapes
+        (capture, inférence, fusion, alertes, métadonnées, écriture vidéo).
+        display_ms et total_loop_ms sont remplis ensuite par
+        _finalize_latency_trace_frame, une fois l'affichage effectué.
+        """
         def ms(value: float | int | None) -> float:
             return round(float(value or 0.0), 3)
 
@@ -1042,6 +1275,8 @@ class Phase3Campaign:
         display_ms: float,
         total_loop_ms: float,
     ) -> None:
+        """Complète a posteriori display_ms et total_loop_ms sur les lignes de
+        trace de la frame donnée (parcours arrière jusqu'à la frame précédente)."""
         if not self.latency_trace_rows:
             return
         for row in reversed(self.latency_trace_rows):
@@ -1051,6 +1286,8 @@ class Phase3Campaign:
             row["total_loop_ms"] = round(total_loop_ms, 3)
 
     def _display(self, frames_raw: dict[str, Any], display_mode: str = "annotated") -> bool:
+        """Affiche la mosaïque des caméras (frames corrigées, annotées selon le
+        mode). Retourne True si l'utilisateur demande l'arrêt (touche q)."""
         from geometry_fix import fix_frame
 
         cells = []
@@ -1067,6 +1304,8 @@ class Phase3Campaign:
         return cv2.waitKey(1) & 0xFF == ord("q")
 
     def _draw_live_annotations(self, cam_id: str, frame: np.ndarray) -> np.ndarray:
+        """Dessine boîtes, points au sol, traînées et étiquettes des détections
+        courantes d'une caméra (couleur stable par identifiant global)."""
         vis = frame.copy()
         self._draw_zones_px(cam_id, vis)
         detections = self.last_detections_by_cam.get(cam_id, [])
@@ -1103,6 +1342,12 @@ class Phase3Campaign:
         return vis
 
     def _draw_zones_px(self, cam_id: str, frame: np.ndarray) -> None:
+        """Projette les zones interdites (définies en mètres) dans l'image caméra.
+
+        Utilise l'inverse de l'homographie du tracker pour ramener les
+        polygones du plan sol vers les pixels, puis les dessine en
+        surimpression rouge semi-transparente.
+        """
         tracker = self.trackers.get(cam_id)
         if tracker is None or tracker.homography is None:
             return
@@ -1139,6 +1384,9 @@ class Phase3Campaign:
             )
 
     def summary(self) -> dict[str, Any]:
+        """Résumé chiffré de la campagne : volumes (frames, détections, alertes,
+        liens de fusion), identifiants globaux uniques, switches d'identité et
+        statistiques de latence d'inférence."""
         switches = sum(int(s["global_id_switches"]) for s in self.track_state.values())
         return {
             "model_version": self.model_spec.version,
@@ -1160,6 +1408,9 @@ class Phase3Campaign:
         }
 
     def write_outputs(self, out_dir: Path) -> None:
+        """Écrit tous les CSV de la campagne dans out_dir : détections, alertes,
+        liens de fusion, synchronisation, trace de latence (si activée) et
+        stabilité des tracks."""
         write_csv(out_dir / "detections.csv", self.detection_rows, DETECTION_FIELDS)
         write_csv(out_dir / "alerts.csv", self.alert_rows, ALERT_FIELDS)
         write_csv(out_dir / "fusion_links.csv", self.fusion_rows, FUSION_FIELDS)
@@ -1187,6 +1438,7 @@ class Phase3Campaign:
         write_csv(out_dir / "track_stability.csv", track_rows, TRACK_FIELDS)
 
 
+# Colonnes des CSV produits par Phase3Campaign.write_outputs().
 DETECTION_FIELDS = [
     "model_version", "model", "format", "frame", "timestamp", "cam_id", "track_id",
     "track_age", "global_id", "class_id", "class_name", "confidence", "x1", "y1",
@@ -1232,6 +1484,26 @@ def compute_phase3_metrics(
     out_dir: Path,
     tad_gt_path: Path = DEFAULT_GT_OBJECTS_TAD,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Calcule les métriques TRD et TAD par caméra à partir d'une campagne.
+
+    TRD (temps de réaction, intrusions de personnes) : les alertes
+    zone_violation_person impliquant la caméra sont appariées aux événements
+    de gt_people (champ trame_violation) avec la tolérance de 10 s de
+    match_alerts_to_gt.
+
+    TAD (temps d'apparition, objets abandonnés) : faute d'alerte dédiée aux
+    objets, chaque détection d'objet (classe autre que personne) tient lieu de
+    candidat. Les timestamps sont regroupés par classe normalisée, restreints
+    aux classes présentes dans la GT de la caméra, puis les faux positifs sont
+    regroupés par fenêtre de TAD_FP_MERGE_WINDOW_S (3 s) pour reproduire la
+    méthodologie d'evaluate_tad.py de la Phase 2 (sinon chaque frame non
+    appariée compterait comme un FP et écraserait la précision).
+
+    Écrit phase3_trd.csv et phase3_tad.csv dans out_dir.
+
+    Returns:
+        Tuple (lignes TRD, lignes TAD), une ligne par caméra.
+    """
     gt_people_path = DEFAULT_GT_PEOPLE
     gt_tad_path = tad_gt_path
     trd_rows: list[dict[str, Any]] = []
@@ -1240,8 +1512,11 @@ def compute_phase3_metrics(
     for cam_id in cameras:
         gt_id = gt_id_map[cam_id]
         cam_detections = [r for r in campaign.detection_rows if r["cam_id"] == cam_id]
-        fps = 25.0
+        fps = 25.0  # les vidéos Zone 1 sont enregistrées à 25 FPS (conversion trame GT -> secondes)
 
+        # TRD : alertes d'intrusion de personne attribuées à la caméra (le
+        # champ cameras vaut "cam_a+cam_b" ; vide signifie caméra inconnue,
+        # l'alerte est alors comptée pour toutes les caméras).
         gt_people = load_gt_events(gt_people_path, gt_id)
         trd_alert_times = [
             float(r["timestamp"])
@@ -1264,6 +1539,8 @@ def compute_phase3_metrics(
             }
         )
 
+        # TAD : les détections d'objets (classe autre que personne) tiennent
+        # lieu d'alertes, regroupées par classe normalisée (sans accents).
         gt_tad = load_gt_events(gt_tad_path, gt_id)
         tad_alert_times_by_class: dict[str, list[float]] = {}
         for row in cam_detections:
@@ -1272,10 +1549,14 @@ def compute_phase3_metrics(
             tad_alert_times_by_class.setdefault(normalize_class(row["class_name"]), []).append(
                 float(row["timestamp"])
             )
+        # Seules les classes présentes dans la GT de la caméra sont retenues,
+        # puis dédupliquées et triées avant appariement.
         all_tad_alert_times = []
         for ev in gt_tad:
             cls = normalize_class(ev.get("classe_objet", ""))
             all_tad_alert_times.extend(tad_alert_times_by_class.get(cls, []))
+        # Le regroupement des FP sur 3 s aligne la Phase 3 sur la méthodologie
+        # d'evaluate_tad.py (Phase 2) et rend les précisions comparables.
         tad = match_alerts_to_gt(
             gt_tad,
             sorted(set(all_tad_alert_times)),
@@ -1320,7 +1601,19 @@ def run_subprocess(
     cwd: Path,
     timeout_s: float | None = None,
 ) -> int:
+    """Lance une commande en sous-processus avec sortie dupliquée console + log.
+
+    La sortie est lue ligne à ligne (stderr fusionné dans stdout) et écrite au
+    fil de l'eau. Codes de retour particuliers : 124 en cas de dépassement de
+    timeout_s (convention de timeout(1)), 125 sur exception interne ; un
+    Ctrl+C tue le fils puis se propage.
+
+    Returns:
+        Le code de retour du sous-processus (ou 124/125, voir ci-dessus).
+    """
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    # Force l'UTF-8 et la sortie non bufferisée du fils pour un streaming
+    # propre des logs (notamment sous Windows).
     env = os.environ.copy()
     env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("PYTHONUTF8", "1")
@@ -1369,6 +1662,8 @@ def run_subprocess(
 
 
 def run_audit(log_path: Path, config_path: Path, out_csv: Path) -> int:
+    """Lance audit_calibration_alerts.py sur le log de campagne (vérification
+    de la calibration des alertes) et retourne son code de sortie."""
     return run_subprocess(
         [
             sys.executable,
@@ -1386,6 +1681,9 @@ def run_audit(log_path: Path, config_path: Path, out_csv: Path) -> int:
 
 
 def run_truth_ablation(truth_csv: Path, config_path: Path, out_csv: Path, log_path: Path) -> int:
+    """Lance ablate_fusion_threshold.py sur le CSV de vérité (positions
+    annotées) pour balayer les seuils de fusion 50/100/150/200 cm. Retourne le
+    code de sortie du sous-processus."""
     return run_subprocess(
         [
             sys.executable,
@@ -1411,10 +1709,22 @@ def run_operational_ablation(
     thresholds_cm: Iterable[int] = (50, 100, 150, 200),
     time_window_ms: float = 500.0,
 ) -> list[dict[str, Any]]:
+    """Ablation opérationnelle du seuil de fusion, sans vérité terrain.
+
+    Rejoue les détections brutes de la campagne (personnes avec position sol
+    valide) dans une fusion neuve pour chaque seuil testé, et compte les liens
+    inter-caméras prédits et les global_id uniques. Contrairement à
+    run_truth_ablation, aucune identité de référence n'est utilisée : la
+    métrique est purement structurelle (mode operational_no_truth_id).
+
+    Écrit le résultat dans out_csv et retourne les lignes produites.
+    """
     from detection import Detection
     from fusion import MultiCameraFusion
 
     rows: list[dict[str, Any]] = []
+    # Regroupe par frame les détections de personnes disposant d'une position
+    # métrique valide (les autres ne peuvent pas être fusionnées).
     grouped: dict[int, list[dict[str, Any]]] = {}
     for row in campaign.raw_detection_rows:
         if row["x_m"] in ("", None) or row["y_m"] in ("", None):
@@ -1424,6 +1734,8 @@ def run_operational_ablation(
         grouped.setdefault(int(row["frame"]), []).append(row)
 
     for threshold_cm in thresholds_cm:
+        # Une fusion neuve par seuil : son état temporel interne ne doit pas
+        # fuir d'un seuil à l'autre.
         fusion = MultiCameraFusion(
             config=config,
             distance_threshold_m=threshold_cm / 100.0,
@@ -1453,6 +1765,7 @@ def run_operational_ablation(
                 if det.global_id is not None:
                     unique_gids.add(det.global_id)
                     by_gid.setdefault(det.global_id, set()).add(det.cam_id)
+            # Un lien prédit = un global_id vu par au moins deux caméras sur la frame.
             predicted_links += sum(1 for cams in by_gid.values() if len(cams) >= 2)
         rows.append(
             {
@@ -1477,6 +1790,11 @@ OPERATIONAL_ABLATION_FIELDS = [
 
 
 def merge_csvs(paths: Iterable[Path], output_path: Path) -> None:
+    """Concatène plusieurs CSV en un seul, en unifiant les en-têtes.
+
+    Les fichiers absents sont ignorés ; les colonnes sont l'union ordonnée des
+    en-têtes rencontrés. Sans aucune donnée, un fichier vide est produit.
+    """
     rows: list[dict[str, Any]] = []
     fieldnames: list[str] = []
     for path in paths:
@@ -1496,11 +1814,18 @@ def merge_csvs(paths: Iterable[Path], output_path: Path) -> None:
 
 
 def write_manifest(path: Path, data: dict[str, Any]) -> None:
+    """Écrit un manifeste JSON indenté (UTF-8, accents conservés)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def stdout_to_log(log_path: Path):
+    """Prépare la duplication de stdout vers un fichier de log.
+
+    Returns:
+        Tuple (fichier de log ouvert, contexte redirect_stdout à utiliser dans
+        un with) ; l'appelant est responsable de fermer le fichier.
+    """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log = open(log_path, "a", encoding="utf-8")
     return log, redirect_stdout(Tee(sys.stdout, log))

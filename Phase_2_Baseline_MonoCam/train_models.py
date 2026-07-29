@@ -2,12 +2,26 @@
 Entraînement comparatif multi-architectures pour la détection d'objets (outils).
 
 Lance séquentiellement l'entraînement de plusieurs modèles Ultralytics
-sur le même dataset, chacun dans son propre sous-dossier de résultats.
+(YOLOv8n/s, YOLO11s, RT-DETR-L, liste MODELS) sur le même dataset, chacun
+dans son propre sous-dossier de résultats (défaut : Modelstrained/V4/).
+
+Pour chaque variante demandée (--variants), un dataset "runtime" est
+reconstruit sous 00_Workspace_Admin/temp_root/datasets/ :
+  - person_objects : toutes les classes (12, dont 'personne') ;
+  - objects_only   : mêmes images, lignes 'personne' retirées des labels.
+
+Autres mécanismes :
+  - validation du data.yaml avec fallback automatique (V4 -> HD -> dataset) ;
+  - retry automatique en cas d'OOM CUDA (batch divisé par 2, --oom-retries) ;
+  - export TensorRT FP32 (.engine) après chaque entraînement réussi,
+    désactivable via --no-export-engine ;
+  - récapitulatif final (durée, poids, engine, statut) par modèle/variante.
 
 Usage :
   python train_models.py
   python train_models.py --data mon_dataset/data.yaml --epochs 100 --batch 8
   python train_models.py --models yolov8n yolov8s       # sous-ensemble
+  python train_models.py --variants objects_only --skip-existing
 """
 
 import argparse
@@ -59,6 +73,7 @@ MODELS = [
 # ── Utilitaires ──────────────────────────────────────────────────────────────
 
 def detect_device() -> str:
+    """Retourne le device d'entraînement : '0' (premier GPU CUDA) ou 'cpu'."""
     if torch.cuda.is_available():
         name = torch.cuda.get_device_name(0)
         props = torch.cuda.get_device_properties(0)
@@ -66,11 +81,12 @@ def detect_device() -> str:
         print(f"  GPU  : {name}  ({vram:.1f} Go VRAM)")
         print(f"  CUDA : {torch.version.cuda}")
         return "0"
-    print("  [!!] Aucun GPU CUDA — entraînement sur CPU (lent).")
+    print("  [!!] Aucun GPU CUDA : entraînement sur CPU (lent).")
     return "cpu"
 
 
 def format_duration(seconds: float) -> str:
+    """Formate une durée en '1h02m03s' ou '4m05s' pour les logs."""
     m, s = divmod(int(seconds), 60)
     h, m = divmod(m, 60)
     if h:
@@ -165,11 +181,13 @@ def validate_dataset_yaml(yaml_path: Path) -> tuple[bool, str]:
 
 
 def read_data_yaml(yaml_path: Path) -> dict:
+    """Lit un data.yaml et retourne son contenu (dict vide si fichier vide)."""
     with open(yaml_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
 def normalize_names(names) -> list[str]:
+    """Normalise le champ `names` (liste ou dict indexé) en liste ordonnée."""
     if isinstance(names, dict):
         return [str(names[i]) for i in sorted(names)]
     if isinstance(names, list):
@@ -178,6 +196,7 @@ def normalize_names(names) -> list[str]:
 
 
 def class_id_for_name(cfg: dict, class_name: str) -> int | None:
+    """Retourne l'ID d'une classe par son nom dans un data.yaml (None si absente)."""
     for idx, name in enumerate(normalize_names(cfg.get("names"))):
         if name == class_name:
             return idx
@@ -185,6 +204,7 @@ def class_id_for_name(cfg: dict, class_name: str) -> int | None:
 
 
 def resolve_data_root(source_yaml: Path, cfg: dict) -> Path:
+    """Résout le champ `path` d'un data.yaml en chemin absolu."""
     data_root = cfg.get("path", ".")
     data_root_path = Path(str(data_root))
     if not data_root_path.is_absolute():
@@ -206,6 +226,10 @@ def image_to_label_path(image_path: Path, data_root: Path) -> Path:
 
 
 def iter_image_files(paths: list[Path]) -> list[Path]:
+    """Collecte les images depuis des dossiers, fichiers image ou listes .txt.
+
+    Retourne une liste triée et dédupliquée de chemins absolus.
+    """
     exts = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
     images: list[Path] = []
     for p in paths:
@@ -224,6 +248,7 @@ def iter_image_files(paths: list[Path]) -> list[Path]:
 
 
 def link_or_copy(src: Path, dst: Path) -> None:
+    """Crée un hardlink vers src (copie réelle en repli), sans écraser dst."""
     dst.parent.mkdir(parents=True, exist_ok=True)
     if dst.exists():
         return
@@ -393,6 +418,7 @@ def build_runtime_data_yaml(source_yaml: Path) -> Path:
 
 
 def is_cuda_oom_error(exc: Exception) -> bool:
+    """Heuristique : détecte un manque de mémoire GPU dans le message d'erreur."""
     msg = str(exc).lower()
     return "out of memory" in msg or "cuda err" in msg or "acceleratorerror" in msg
 
@@ -518,7 +544,7 @@ def train_one(name: str, weights: str, model_type: str,
     if skipped_training and best_pt.exists():
         size_mb = best_pt.stat().st_size / (1024 ** 2)
         result["size_mb"] = size_mb
-        print(f"\n  [OK] {name} réutilisé — best.pt = {size_mb:.1f} Mo")
+        print(f"\n  [OK] {name} réutilisé : best.pt = {size_mb:.1f} Mo")
     elif train_error is not None:
         print(f"\n  [ECHEC] {name} après {format_duration(elapsed)}")
         print(f"          Raison: {train_error}")
@@ -526,11 +552,11 @@ def train_one(name: str, weights: str, model_type: str,
         size_mb = best_pt.stat().st_size / (1024 ** 2)
         result["size_mb"] = size_mb
         print(f"\n  [OK] {name} terminé en {format_duration(elapsed)} "
-              f"— best.pt = {size_mb:.1f} Mo (batch={current_batch})")
+              f"- best.pt = {size_mb:.1f} Mo (batch={current_batch})")
     else:
         result["status"] = "ECHEC"
         print(f"\n  [!!] {name} terminé en {format_duration(elapsed)} "
-              f"— best.pt NON TROUVÉ")
+              f"- best.pt NON TROUVÉ")
 
     if export_engine and result["status"] == "OK" and best_pt.exists():
         try:
@@ -563,13 +589,17 @@ def train_one(name: str, weights: str, model_type: str,
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def parse_args():
+    """Déclare et parse les options CLI du benchmark d'entraînement."""
     p = argparse.ArgumentParser(
         description="Entraînement comparatif multi-architectures (Ultralytics).")
     p.add_argument("--data", "-d", default=str(DEFAULT_DATA_YAML),
                    help=f"Chemin vers data.yaml (défaut: {DEFAULT_DATA_YAML})")
-    p.add_argument("--epochs", "-e", type=int, default=50)
-    p.add_argument("--imgsz", type=int, default=960)
-    p.add_argument("--batch", "-b", type=int, default=16)
+    p.add_argument("--epochs", "-e", type=int, default=50,
+                   help="Nombre d'epochs par modèle (défaut: 50)")
+    p.add_argument("--imgsz", type=int, default=960,
+                   help="Taille d'entrée entraînement/export (défaut: 960)")
+    p.add_argument("--batch", "-b", type=int, default=16,
+                   help="Taille de batch initiale, réduite automatiquement si OOM (défaut: 16)")
     p.add_argument("--min-batch", type=int, default=2,
                    help="Batch minimal en cas de retry OOM (défaut: 2)")
     p.add_argument("--oom-retries", type=int, default=3,
@@ -597,18 +627,22 @@ def parse_args():
 
 
 def main():
+    """Orchestration : datasets de variantes, boucle d'entraînement, récapitulatif."""
     args = parse_args()
+    # Batch spécifique par modèle (ex: yolo11s=2,rtdetr-l=1), validé en amont.
     try:
         batch_overrides = parse_batch_overrides(args.batch_overrides)
     except ValueError as e:
         print(f"[ERREUR] {e}")
         return
 
+    # Validation du data.yaml demandé (avec fallback auto sur le défaut).
     data_path = resolve_data_yaml(args.data)
     if data_path is None:
         print("         Passe --data <chemin_vers_un_data.yaml_valide>")
         return
 
+    # Construction des datasets runtime, un par variante demandée.
     variant_data = {}
     if "person_objects" in args.variants:
         variant_data["person_objects"] = build_variant_dataset(
@@ -617,6 +651,7 @@ def main():
             excluded_classes=set(),
         )
     if "objects_only" in args.variants:
+        # objects_only n'a de sens que si la classe 'personne' existe.
         cfg = read_data_yaml(data_path)
         if class_id_for_name(cfg, "personne") is None:
             print("[WARN] Classe 'personne' absente du dataset, objects_only = person_objects")
@@ -643,7 +678,7 @@ def main():
             return
 
     print("\n" + "=" * 60)
-    print("  BENCHMARK ENTRAÎNEMENT — DÉTECTION D'OBJETS (OUTILS)")
+    print("  BENCHMARK ENTRAÎNEMENT : DÉTECTION D'OBJETS (OUTILS)")
     print("=" * 60)
     print(f"  Dataset  : {data_path}")
     print(f"  Sortie   : {args.project}/")
@@ -663,9 +698,11 @@ def main():
     results = []
     total_t0 = time.time()
 
+    # Boucle principale : chaque variante x chaque modèle = un job séquentiel.
     total_jobs = len(models) * len(variant_data)
     job_idx = 0
     for variant, variant_yaml in variant_data.items():
+        # YAML runtime avec chemin absolu (évite les ambiguïtés Ultralytics).
         runtime_data_yaml = build_runtime_data_yaml(variant_yaml)
         variant_project = str(Path(args.project) / variant)
         for name, weights, mtype in models:
@@ -674,6 +711,7 @@ def main():
             print(f"  [{job_idx}/{total_jobs}] Lancement de {variant}/{name}...")
             print(f"{'─' * 60}")
 
+            # Batch spécifique au modèle si défini, sinon le --batch global.
             model_batch = batch_overrides.get(name, args.batch)
             result = train_one(
                 name=name,
@@ -709,11 +747,12 @@ def main():
             size = f"{r['size_mb']:.1f} Mo"
             status = "OK"
         else:
-            size = "—"
+            size = "-"
             status = "ECHEC"
-        engine = "OK" if r.get("engine_exists") else ("skip" if args.no_export_engine else "—")
+        engine = "OK" if r.get("engine_exists") else ("skip" if args.no_export_engine else "-")
         print(f"  {r.get('variant',''):<15s}  {r['name']:<12s}  {dur:>10s}  {size:>10s}  {engine:>8s}  {r['batch_used']:>5d}  {status}")
 
+    # Détail des jobs en échec (première ligne d'erreur, tronquée).
     failed = [r for r in results if r["status"] != "OK"]
     if failed:
         print("\n  Détail des échecs :")
@@ -722,6 +761,7 @@ def main():
             short_err = err.splitlines()[0][:140] if err else "Erreur inconnue"
             print(f"    - {r.get('variant','')}/{r['name']}: {short_err}")
 
+    # Entraînements OK mais export TensorRT manquant.
     engine_failed = [r for r in results if r["status"] == "OK"
                      and not args.no_export_engine
                      and not r.get("engine_exists")]

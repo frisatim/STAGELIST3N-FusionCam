@@ -536,7 +536,7 @@ def main():
     cv2.setMouseCallback(ref_win, on_click)
 
     print(f"\n{'='*60}")
-    print(f"  DESSIN DE ZONE — {args.zone}")
+    print(f"  DESSIN DE ZONE : {args.zone}")
     print(f"  Camera de reference : {ref_cam}")
     print(f"{'='*60}")
     print(f"  Cliquez les coins de la zone sur la camera {ref_cam}.")

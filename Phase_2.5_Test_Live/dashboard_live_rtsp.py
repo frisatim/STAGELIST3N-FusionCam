@@ -1,15 +1,34 @@
 """
-Phase 2.5 - Dashboard Live RTSP : Securite Industrielle Temps Reel
-===================================================================
+Phase 2.5 : premier dashboard live RTSP (sécurité industrielle temps réel).
 
-Modes disponibles:
-  1) backend ultralytics (comportement historique)
-  2) backend gstreamer (capture OpenCV + frame skip inference)
+Rôle historique : étape intermédiaire entre la baseline mono-caméra
+(Phase 2, évaluation sur vidéos enregistrées) et la fusion multi-caméras
+(Phase 3). Ce script a servi à valider l'inférence en direct sur les flux
+RTSP des caméras (latence, choix du backend de capture, frame skip) avant
+l'architecture finale ; le dashboard définitif est celui de la Phase 4.
 
-Regles metier:
-  A) TAD  -- Objet interdit (classes 0..13) detecte n'importe ou
-    B) TRD  -- Personne (classe 14), test du point pieds bas-centre
-                         contre le polygone de zone
+Deux backends de capture (option --backend) :
+  1) ultralytics : la capture est déléguée à model.predict(stream=True)
+     directement sur les URL RTSP (comportement historique) ;
+  2) gstreamer (défaut) : un thread de lecture OpenCV/GStreamer
+     bas-latence par caméra, inférence 1 frame sur N (--infer-every).
+
+Règles métier appliquées par caméra :
+  A) TAD : objet interdit (toute classe autre que la personne, avec
+     id <= OBJECT_CLASS_MAX) détecté n'importe où dans l'image ;
+  B) TRD : personne (classe PERSON_CLASS) dont le point de contact au sol
+     (bas-centre de la boîte englobante) tombe dans le polygone de zone
+     interdite (zones_config.json, référence 1280x720 remise à l'échelle
+     de chaque flux).
+
+Note : MODEL_PATH par défaut pointe des poids V3
+(Modelstrained/V3/yolo11s/weights/best.engine) ; adapter ce chemin via
+--model aux poids réellement disponibles (ex. V4).
+
+Usage :
+  python dashboard_live_rtsp.py                          # défauts
+  python dashboard_live_rtsp.py --backend gstreamer --infer-every 2
+  python dashboard_live_rtsp.py --model chemin/best.engine --cameras cam_07
 """
 
 import json
@@ -87,6 +106,10 @@ DARK_RED = (0, 0, 180)
 # ============================================================================
 
 def load_zones(path: str) -> dict[str, np.ndarray]:
+    """Charge zones_config.json et retourne {cam_id: polygone Nx2 int32}.
+
+    Les entrées de moins de 3 points sont ignorées ; fichier absent = arrêt.
+    """
     p = Path(path)
     if not p.exists():
         sys.exit(f"[ERREUR] Fichier zones introuvable : {p}")
@@ -104,6 +127,7 @@ def load_zones(path: str) -> dict[str, np.ndarray]:
 def rescale_polygon(poly: np.ndarray,
                     ref_w: int, ref_h: int,
                     dst_w: int, dst_h: int) -> np.ndarray:
+    """Remet un polygone défini en (ref_w, ref_h) à l'échelle (dst_w, dst_h)."""
     if ref_w == dst_w and ref_h == dst_h:
         return poly.copy()
 
@@ -119,6 +143,7 @@ def rescale_polygon(poly: np.ndarray,
 
 def foot_contact_points(x1: int, y1: int,
                         x2: int, y2: int) -> list[tuple[int, int]]:
+    """Retourne le point de contact au sol d'une boîte englobante (règle TRD)."""
     # TRD: utiliser uniquement le point bas-centre des pieds.
     return [
         (int((x1 + x2) / 2), int(y2)),
@@ -127,6 +152,7 @@ def foot_contact_points(x1: int, y1: int,
 
 def any_point_in_polygon(points: list[tuple[int, int]],
                          contour: np.ndarray) -> bool:
+    """Vrai si au moins un des points est dans le polygone (bord inclus)."""
     for px, py in points:
         if cv2.pointPolygonTest(contour, (float(px), float(py)),
                                 measureDist=False) >= 0:
@@ -139,6 +165,14 @@ def any_point_in_polygon(points: list[tuple[int, int]],
 # ============================================================================
 
 class CamState:
+    """État persistant d'une caméra : zone mise à l'échelle et anti-clignotement.
+
+    Une alerte (intrusion ou objet) n'est levée qu'après PERSIST_THRESHOLD
+    frames positives consécutives, afin de filtrer les détections isolées.
+    Conserve aussi le dernier snapshot d'inférence (mode frame skip) et les
+    métriques de latence par caméra.
+    """
+
     PERSIST_THRESHOLD = 3
 
     def __init__(self, cam_id: str, zone_ref: np.ndarray):
@@ -160,6 +194,7 @@ class CamState:
         self.last_skew_ms = 0.0
 
     def ensure_scale(self, frame_w: int, frame_h: int):
+        """Adapte le polygone de référence à la résolution du flux (une seule fois)."""
         if self._scaled:
             return
         self.zone_poly = rescale_polygon(self._zone_ref,
@@ -174,6 +209,7 @@ class CamState:
                   f" -> {frame_w}x{frame_h} (x{ratio_x:.2f}, y{ratio_y:.2f})")
 
     def update(self, has_intrusion: bool, has_object: bool):
+        """Met à jour les compteurs de persistance et les drapeaux d'alerte."""
         self._intrusion_ctr = self._intrusion_ctr + 1 if has_intrusion else 0
         self.intrusion = self._intrusion_ctr >= self.PERSIST_THRESHOLD
 
@@ -183,6 +219,12 @@ class CamState:
 
 @dataclass
 class DetectionSnapshot:
+    """Résultat d'une inférence : boîtes personnes/objets et drapeaux d'alerte.
+
+    L'horodatage permet de juger la fraîcheur du snapshot lorsqu'il est
+    réutilisé entre deux inférences (--infer-every / --stale-ms).
+    """
+
     timestamp: float
     person_boxes: list[tuple[int, int, int, int, float, bool, list[tuple[int, int]]]]
     object_boxes: list[tuple[int, int, int, int, int, float]]
@@ -195,6 +237,7 @@ class DetectionSnapshot:
 # ============================================================================
 
 def draw_zone(frame: np.ndarray, poly: np.ndarray, alert: bool):
+    """Dessine le polygone de zone (contour vert, rempli en rouge si alerte)."""
     if alert:
         overlay = frame.copy()
         cv2.fillPoly(overlay, [poly], RED)
@@ -204,6 +247,7 @@ def draw_zone(frame: np.ndarray, poly: np.ndarray, alert: bool):
 
 def draw_person(frame: np.ndarray, x1: int, y1: int, x2: int, y2: int,
                 in_zone: bool, feet: list[tuple[int, int]], conf: float):
+    """Dessine la boîte personne, le point pieds (cyan) et la confiance."""
     color = RED if in_zone else GREEN
     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
@@ -218,6 +262,7 @@ def draw_person(frame: np.ndarray, x1: int, y1: int, x2: int, y2: int,
 
 def draw_object(frame: np.ndarray, x1: int, y1: int, x2: int, y2: int,
                 cls_id: int, conf: float, blink_on: bool):
+    """Dessine une boîte objet interdit clignotante (orange, 3 Hz environ)."""
     if not blink_on:
         return
     cv2.rectangle(frame, (x1, y1), (x2, y2), ORANGE, 3)
@@ -226,6 +271,7 @@ def draw_object(frame: np.ndarray, x1: int, y1: int, x2: int, y2: int,
 
 
 def draw_banners(frame: np.ndarray, state: CamState):
+    """Affiche le bandeau d'alerte supérieur (INTRUSION ZONE / OBJET INTERDIT)."""
     h, w = frame.shape[:2]
     alerts: list[str] = []
     if state.intrusion:
@@ -247,12 +293,14 @@ def draw_banners(frame: np.ndarray, state: CamState):
 
 
 def draw_fps(frame: np.ndarray, fps: float, model_label: str):
+    """Affiche le compteur FPS global et le nom du modèle en haut à gauche."""
     text = f"FPS: {fps:.1f} - {model_label}"
     cv2.putText(frame, text, (12, 28),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.65, RED, 2)
 
 
 def draw_status(frame: np.ndarray, cam_id: str, state: CamState):
+    """Affiche l'état de la caméra (OK ou alertes actives) en bas de l'image."""
     h = frame.shape[0]
     parts = []
     if state.intrusion:
@@ -273,6 +321,7 @@ def draw_latency(frame: np.ndarray, state: CamState):
 
 
 def draw_snapshot(frame: np.ndarray, snapshot: DetectionSnapshot):
+    """Dessine toutes les détections d'un snapshot (personnes puis objets)."""
     blink_on = int(time.perf_counter() * 6) % 2 == 0
     for x1, y1, x2, y2, conf, in_zone, feet in snapshot.person_boxes:
         draw_person(frame, x1, y1, x2, y2, in_zone, feet, conf)
@@ -285,6 +334,7 @@ def draw_snapshot(frame: np.ndarray, snapshot: DetectionSnapshot):
 # ============================================================================
 
 def build_rtsp_url(host: str, subtype: int) -> str:
+    """Construit l'URL RTSP d'une caméra (subtype 0 = main stream, 1 = substream)."""
     return (
         f"rtsp://<USER>:<PASSWORD>@{host}:554/"
         f"cam/realmonitor?channel=1&subtype={subtype}"
@@ -292,6 +342,7 @@ def build_rtsp_url(host: str, subtype: int) -> str:
 
 
 def build_gst_pipeline(rtsp_url: str, latency: int, force_tcp: bool) -> str:
+    """Construit le pipeline GStreamer bas-latence (appsink 1 buffer, drop=true)."""
     protocol_clause = " protocols=tcp" if force_tcp else ""
     return (
         f'rtspsrc location="{rtsp_url}" latency={latency} drop-on-latency=true'
@@ -334,6 +385,12 @@ def extract_max_imgsz_from_exception(exc: Exception) -> int | None:
 
 
 class CameraCapture:
+    """Ouverture synchrone d'un flux : GStreamer puis fallback FFMPEG.
+
+    Non utilisée par les boucles principales (qui passent par CameraReader) ;
+    conservée comme utilitaire de test d'ouverture d'un flux.
+    """
+
     def __init__(self, cam_id: str, source: str,
                  backend: str,
                  gst_latency: int,
@@ -349,6 +406,7 @@ class CameraCapture:
         self.backend_used = ""
 
     def open(self) -> bool:
+        """Ouvre le flux avec le backend demandé ; retourne True si succès."""
         if self.backend == "gstreamer":
             pipeline = build_gst_pipeline(self.source, self.gst_latency, self.force_tcp)
             self.cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
@@ -374,17 +432,24 @@ class CameraCapture:
         return False
 
     def read(self) -> tuple[bool, np.ndarray | None]:
+        """Lit une frame sur le flux ouvert ((False, None) sinon)."""
         if self.cap is None:
             return False, None
         return self.cap.read()
 
     def release(self):
+        """Libère la capture OpenCV si elle est ouverte."""
         if self.cap is not None:
             self.cap.release()
 
 
 class CameraReader:
-    """Lecteur RTSP asynchrone avec reconnexion et fallback backend."""
+    """Lecteur RTSP asynchrone avec reconnexion et fallback backend.
+
+    Un thread daemon par caméra lit le flux en continu et ne conserve que la
+    dernière frame (horodatée) ; la boucle d'affichage la récupère via
+    get_latest() sans jamais bloquer sur le réseau.
+    """
 
     def __init__(self, cam_id: str, source: str,
                  gst_latency: int,
@@ -410,6 +475,10 @@ class CameraReader:
         self._thread.start()
 
     def _open_capture(self):
+        """Essaie chaque variante d'URL en GStreamer, puis FFMPEG si autorisé.
+
+        Retourne (capture, backend, source_active, message_erreur).
+        """
         for candidate in self._source_candidates:
             pipeline = build_gst_pipeline(candidate, self.gst_latency, self.force_tcp)
             cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
@@ -427,6 +496,7 @@ class CameraReader:
         return None, "", "", "ouverture RTSP impossible"
 
     def _reader_loop(self):
+        """Boucle du thread : reconnexion automatique et stockage de la dernière frame."""
         cap = None
         while self._running:
             if cap is None or not cap.isOpened():
@@ -470,6 +540,7 @@ class CameraReader:
             cap.release()
 
     def get_latest(self):
+        """Retourne (frame, ts_capture, connecté, backend, source, erreur) sous verrou."""
         with self._lock:
             return (
                 self._frame,
@@ -481,6 +552,7 @@ class CameraReader:
             )
 
     def stop(self):
+        """Demande l'arrêt du thread lecteur (arrêt effectif à l'itération suivante)."""
         self._running = False
 
 
@@ -489,6 +561,11 @@ class CameraReader:
 # ============================================================================
 
 def infer_snapshot(result, state: CamState) -> DetectionSnapshot:
+    """Convertit un résultat Ultralytics en DetectionSnapshot (règles TAD/TRD).
+
+    Personne (PERSON_CLASS) : test du point pieds contre la zone de la caméra ;
+    toute autre classe <= OBJECT_CLASS_MAX : objet interdit où qu'il soit.
+    """
     boxes = result.boxes
     has_intrusion = False
     has_object = False
@@ -527,6 +604,12 @@ def infer_snapshot(result, state: CamState) -> DetectionSnapshot:
 def run_ultralytics(model_path: str, sources: list[str], camera_ids: list[str],
                     zones: dict[str, np.ndarray], conf: float, imgsz: int,
                     use_tracker: bool, tracker_name: str, track_conf: float):
+    """Boucle historique : capture et inférence déléguées à Ultralytics.
+
+    model.predict()/model.track() en stream=True consomme directement les URL
+    RTSP ; les résultats sont attribués aux caméras en round-robin (une fenêtre
+    OpenCV par caméra). Pas de frame skip ni de mesure de latence dans ce mode.
+    """
     from ultralytics import YOLO
 
     n_cams = len(sources)
@@ -542,6 +625,8 @@ def run_ultralytics(model_path: str, sources: list[str], camera_ids: list[str],
 
     print("\n  Chargement du modele...")
     model = YOLO(model_path)
+    # Warmup sur une image noire : le premier appel (compilation/allocation
+    # GPU) est lent, on l'évacue avant d'ouvrir les flux.
     model.predict(np.zeros((imgsz, imgsz, 3), dtype=np.uint8),
                   conf=conf, verbose=False)
     print(f"  Modele pret : {model_label}\n")
@@ -569,6 +654,7 @@ def run_ultralytics(model_path: str, sources: list[str], camera_ids: list[str],
     tracker_active = use_tracker
 
     try:
+        # Ultralytics accepte une source unique ou une liste (multi-flux).
         src = sources[0] if n_cams == 1 else sources
         if tracker_active:
             print(f"  Tracking active : {tracker_name} (conf={track_conf})")
@@ -602,6 +688,8 @@ def run_ultralytics(model_path: str, sources: list[str], camera_ids: list[str],
             )
 
         for result in stream_iter:
+            # Attribution round-robin : Ultralytics restitue les flux dans
+            # l'ordre des sources, un résultat par caméra et par tour.
             cam_id = camera_ids[frame_count % n_cams]
             state = states[cam_id]
             frame = result.orig_img
@@ -625,6 +713,7 @@ def run_ultralytics(model_path: str, sources: list[str], camera_ids: list[str],
 
             frame_count += 1
             fps_frames += 1
+            # FPS moyen recalculé toutes les secondes.
             now = time.perf_counter()
             dt = now - fps_clock
             if dt >= 1.0:
@@ -632,6 +721,7 @@ def run_ultralytics(model_path: str, sources: list[str], camera_ids: list[str],
                 fps_frames = 0
                 fps_clock = now
 
+            # 'q' ou Echap pour quitter.
             if (cv2.waitKey(1) & 0xFF) in (ord("q"), 27):
                 break
 
@@ -665,23 +755,46 @@ def run_gstreamer(model_path: str,
                   latency_report_sec: float,
                   sync_cameras: bool,
                   sync_tolerance_ms: int):
+    """Boucle principale bas-latence : lecteurs GStreamer + frame skip inférence.
+
+    Architecture :
+      - un CameraReader (thread) par caméra alimente en continu la dernière
+        frame disponible ; la boucle ci-dessous ne bloque jamais sur le réseau ;
+      - l'inférence n'est lancée qu'une frame sur `infer_every` ; entre deux
+        inférences, le dernier DetectionSnapshot est réaffiché tant qu'il a
+        moins de `stale_ms` millisecondes ;
+      - option `sync_cameras` : barrière soft qui attend que les horodatages de
+        capture des caméras soient à moins de `sync_tolerance_ms` d'écart ;
+      - si le modèle est un engine TensorRT statique dont la taille d'entrée ne
+        correspond pas à `imgsz`, la taille est corrigée automatiquement à
+        partir du message d'erreur (voir extract_max_imgsz_from_exception).
+
+    Métriques affichées/loggées : FPS global, latence capture -> affichage
+    (LAT) et désynchronisation inter-caméras (SKEW).
+    """
     from ultralytics import YOLO
 
     print("\n  Chargement du modele...")
     model = YOLO(model_path)
+    # Warmup sur une image noire pour évacuer le coût du premier appel.
     model.predict(np.zeros((imgsz, imgsz, 3), dtype=np.uint8), conf=conf, verbose=False)
     print("  Modele pret.\n")
 
+    # Mémorise l'imgsz demandé : utile pour le log si un engine statique
+    # impose une autre taille en cours de route.
     requested_imgsz = int(imgsz)
 
     states: dict[str, CamState] = {}
     readers: dict[str, CameraReader] = {}
     windows: dict[str, str] = {}
 
+    # Un état, un lecteur threadé et une fenêtre OpenCV par caméra.
     for cam_id, source in zip(camera_ids, sources):
         if cam_id in zones:
             states[cam_id] = CamState(cam_id, zones[cam_id])
         else:
+            # Zone absente : polygone dégénéré (3 points quasi confondus),
+            # aucune intrusion ne pourra être levée pour cette caméra.
             states[cam_id] = CamState(cam_id, np.array([[0, 0], [0, 1], [1, 1]], dtype=np.int32))
             print(f"  [ATTENTION] Pas de zone pour {cam_id}")
 
@@ -715,19 +828,23 @@ def run_gstreamer(model_path: str,
     print(f"    - sync tolerance   : {sync_tolerance_ms} ms")
     print("  Appuyer sur 'q' pour quitter.\n")
 
+    # Compteurs FPS et divers états de la boucle d'affichage.
     frame_count = 0
     fps_clock = time.perf_counter()
     fps_frames = 0
     fps_display = 0.0
     last_latency_report = time.perf_counter()
-    announced_cams: set[str] = set()
-    tracker_disabled = False
+    announced_cams: set[str] = set()   # caméras déjà annoncées en console
+    tracker_disabled = False           # passe à True si model.track() échoue
 
     try:
         while True:
+            # 1) Collecte non bloquante de la dernière frame de chaque lecteur.
             latest_by_cam: dict[str, tuple[np.ndarray, float]] = {}
             for cam_id, reader in readers.items():
                 frame, capture_ts, connected, backend, active_source, _ = reader.get_latest()
+                # Première connexion réussie : annonce du backend retenu
+                # (URL affichée sans les identifiants).
                 if connected and backend and cam_id not in announced_cams:
                     safe = active_source.split("@", 1)[-1] if "@" in active_source else active_source
                     print(f"  [{cam_id}] backend={backend} source={safe}")
@@ -737,6 +854,11 @@ def run_gstreamer(model_path: str,
                 latest_by_cam[cam_id] = (frame, capture_ts)
 
             had_frame = len(latest_by_cam) > 0
+
+            # 2) Barrière de synchronisation soft (optionnelle) : si l'écart
+            #    entre la capture la plus ancienne et la plus récente dépasse
+            #    la tolérance, on saute ce tour pour laisser les caméras en
+            #    retard se rattraper (aucune frame n'est affichée).
             if sync_cameras and len(latest_by_cam) >= 2:
                 ts_values = [t for _, t in latest_by_cam.values()]
                 global_skew_ms = (max(ts_values) - min(ts_values)) * 1000.0
@@ -748,6 +870,7 @@ def run_gstreamer(model_path: str,
             else:
                 global_skew_ms = 0.0
 
+            # 3) Traitement caméra par caméra (inférence, alertes, rendu).
             for cam_id in camera_ids:
                 if cam_id not in latest_by_cam:
                     continue
@@ -758,11 +881,16 @@ def run_gstreamer(model_path: str,
                 h_frame, w_frame = frame.shape[:2]
                 state.ensure_scale(w_frame, h_frame)
 
+                # Frame skip : inférence 1 frame sur `infer_every` (et
+                # systématiquement tant qu'aucun snapshot n'existe).
                 state.frame_index += 1
                 do_infer = (state.frame_index % infer_every == 0) or (state.last_snapshot is None)
 
                 if do_infer:
                     if use_tracker and not tracker_disabled:
+                        # Mode tracking : lisse les détections entre frames.
+                        # En cas d'échec (ex. engine incompatible), bascule
+                        # définitive sur predict() simple.
                         try:
                             results = model.track(
                                 source=frame,
@@ -773,6 +901,8 @@ def run_gstreamer(model_path: str,
                                 verbose=False,
                             )
                         except Exception as e:
+                            # Engine TensorRT statique : récupère la taille
+                            # d'entrée imposée et corrige imgsz pour la suite.
                             max_imgsz = extract_max_imgsz_from_exception(e)
                             if max_imgsz is not None and max_imgsz != imgsz:
                                 print(
@@ -787,6 +917,8 @@ def run_gstreamer(model_path: str,
                         try:
                             results = model.predict(source=frame, conf=conf, imgsz=imgsz, verbose=False)
                         except Exception as e:
+                            # Même correction auto-imgsz qu'en mode tracking ;
+                            # toute autre erreur est propagée telle quelle.
                             max_imgsz = extract_max_imgsz_from_exception(e)
                             if max_imgsz is not None and max_imgsz != imgsz:
                                 print(
@@ -802,25 +934,32 @@ def run_gstreamer(model_path: str,
                     state.last_snapshot = snapshot
                     state.update(snapshot.has_intrusion, snapshot.has_object)
                 else:
+                    # Frame sautée : on réutilise le dernier snapshot connu.
                     snapshot = state.last_snapshot
 
+                # Fraîcheur du snapshot : au-delà de stale_ms, les détections
+                # sont considérées périmées et ne sont plus dessinées.
                 is_fresh = False
                 if snapshot is not None:
                     age_ms = (time.perf_counter() - snapshot.timestamp) * 1000.0
                     is_fresh = age_ms <= stale_ms
 
+                # 4) Rendu : zone, détections (si fraîches), bandeaux et HUD.
                 if cam_id in zones:
                     draw_zone(frame, state.zone_poly, state.intrusion)
 
                 if snapshot is not None and is_fresh:
                     draw_snapshot(frame, snapshot)
                 elif snapshot is None:
+                    # Aucune détection disponible : décrémente la persistance
+                    # pour ne pas laisser une alerte figée à l'écran.
                     state.update(False, False)
 
                 draw_banners(frame, state)
                 draw_fps(frame, fps_display, Path(model_path).name)
                 draw_status(frame, cam_id, state)
 
+                # Latence bout-en-bout : capture GStreamer -> affichage.
                 now_draw = time.perf_counter()
                 state.last_latency_ms = max(0.0, (now_draw - state.last_capture_ts) * 1000.0)
 
@@ -835,9 +974,12 @@ def run_gstreamer(model_path: str,
                 frame_count += 1
                 fps_frames += 1
 
+            # Aucune caméra n'a fourni de frame : courte pause pour ne pas
+            # saturer le CPU en boucle vide.
             if not had_frame:
                 time.sleep(0.002)
 
+            # FPS moyen recalculé toutes les secondes.
             now = time.perf_counter()
             dt = now - fps_clock
             if dt >= 1.0:
@@ -845,6 +987,7 @@ def run_gstreamer(model_path: str,
                 fps_frames = 0
                 fps_clock = now
 
+            # Rapport de latence périodique en console (0 = désactivé).
             if latency_report_sec > 0 and (now - last_latency_report) >= latency_report_sec:
                 active_states = [s for s in states.values() if s.last_capture_ts > 0]
                 if active_states:
@@ -854,12 +997,14 @@ def run_gstreamer(model_path: str,
                     print(f"  [LATENCY] avg={avg_lat:.0f}ms max={max_lat:.0f}ms sync_skew={max_skew:.0f}ms")
                 last_latency_report = now
 
+            # 'q' ou Echap pour quitter.
             if (cv2.waitKey(1) & 0xFF) in (ord("q"), 27):
                 break
 
     except KeyboardInterrupt:
         print("\n  Arret (Ctrl+C).")
     finally:
+        # Arrêt propre : threads lecteurs puis fenêtres OpenCV.
         for reader in readers.values():
             reader.stop()
         cv2.destroyAllWindows()
@@ -872,6 +1017,11 @@ def run_gstreamer(model_path: str,
 # ============================================================================
 
 def resolve_camera_ids(args, zones: dict[str, np.ndarray]) -> list[str]:
+    """Détermine les caméras à afficher.
+
+    Priorité : --cameras explicite, sinon les caméras disposant d'une zone,
+    sinon toutes celles de RTSP_HOSTS ; liste tronquée par --num-cameras.
+    """
     all_ids = sorted(RTSP_HOSTS.keys())
 
     if args.cameras:
@@ -889,19 +1039,25 @@ def resolve_camera_ids(args, zones: dict[str, np.ndarray]) -> list[str]:
 
 
 def main():
+    """Point d'entrée CLI : parse les options, valide la configuration
+    (zones, caméras, modèle) puis lance le backend choisi."""
     import argparse
 
     p = argparse.ArgumentParser(description="Dashboard Live RTSP")
-    p.add_argument("--model", "-m", default=MODEL_PATH)
-    p.add_argument("--zones", "-z", default=ZONES_JSON)
+    p.add_argument("--model", "-m", default=MODEL_PATH,
+                   help="Chemin du modèle (.pt/.onnx/.engine), défaut: poids V3 (à adapter)")
+    p.add_argument("--zones", "-z", default=ZONES_JSON,
+                   help="Fichier JSON des polygones de zones interdites")
     p.add_argument("--cameras", nargs="+", default=None,
                    help="Liste explicite de cameras (ex: cam_01 cam_05 cam_07)")
     p.add_argument("--num-cameras", type=int, default=None,
                    help="Selection rapide des N premieres cameras (1..8)")
     p.add_argument("--sources", nargs="+", default=None,
                    help="Sources custom (meme taille que --cameras finales)")
-    p.add_argument("--conf", type=float, default=DEFAULT_CONF)
-    p.add_argument("--imgsz", type=int, default=DEFAULT_IMGSZ)
+    p.add_argument("--conf", type=float, default=DEFAULT_CONF,
+                   help="Seuil de confiance des détections")
+    p.add_argument("--imgsz", type=int, default=DEFAULT_IMGSZ,
+                   help="Taille d'entrée inférence (corrigée si engine statique)")
     p.add_argument("--use-tracker", action="store_true", default=DEFAULT_USE_TRACKER,
                    help="Utilise model.track() avec persist=True pour lisser les detections")
     p.add_argument("--tracker", type=str, default=DEFAULT_TRACKER,
@@ -936,12 +1092,14 @@ def main():
 
     args = p.parse_args()
 
+    # Bornes de sécurité sur les paramètres du frame skip.
     infer_every = max(1, int(args.infer_every))
     stale_ms = max(50, int(args.stale_ms))
 
     zones = load_zones(args.zones)
     print(f"  Zones chargees : {list(zones.keys())}")
 
+    # Sélection et validation des caméras demandées.
     camera_ids = resolve_camera_ids(args, zones)
     if not camera_ids:
         sys.exit("[ERREUR] Aucune camera selectionnee.")
@@ -950,6 +1108,8 @@ def main():
         if cid not in RTSP_HOSTS:
             sys.exit(f"[ERREUR] Camera inconnue: {cid}")
 
+    # Sources : soit fournies explicitement (--sources), soit construites
+    # depuis les hôtes RTSP connus.
     if args.sources:
         if len(args.sources) != len(camera_ids):
             sys.exit("[ERREUR] --sources doit avoir la meme taille que les cameras selectionnees.")

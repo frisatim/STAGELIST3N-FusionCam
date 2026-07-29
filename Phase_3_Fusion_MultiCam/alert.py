@@ -3,6 +3,10 @@ Module de structures de données pour les alertes Phase 3.
 
 Contient la dataclass Alert générée par ViolationDetector quand
 une violation de zone est détectée ou qu'un objet interdit est vu.
+
+Place dans le pipeline : Alert est le format de sortie de la détection de
+violations, consommé par l'affichage de pipeline.py et sérialisé vers la
+Phase 4 par metadata_publisher.py.
 """
 
 from __future__ import annotations
@@ -22,16 +26,19 @@ class Alert:
     """Représente une alerte de violation de sécurité.
 
     Attributes:
-        alert_id: Unique identifier for this alert (UUID).
-        alert_type: "zone_violation_person" or "forbidden_object".
-        global_id: Cross-camera entity identifier.
-        zone_id: Forbidden zone identifier (e.g. "zone_1"). None for object alerts.
-        position_m: Position on the floor plan in metres (x, y).
-        cameras: List of camera IDs that observed this entity.
-        timestamp: Unix timestamp of the alert (seconds, float).
-        confidence: Detection confidence of the triggering detection.
-        class_name: "person" or name of the forbidden object.
-        acknowledged: True once the alert has been logged or forwarded.
+        alert_id: Identifiant unique de l'alerte (UUID tronqué à 8 caractères).
+        alert_type: "zone_violation_person" ou "forbidden_object".
+        global_id: Identifiant inter-caméras de l'entité concernée.
+        zone_id: Identifiant de la zone interdite (ex. "zone_1").
+                 None pour les alertes objet.
+        position_m: Position sur le plan de sol en mètres (x, y).
+        cameras: Identifiants des caméras ayant observé l'entité.
+        timestamp: Horodatage Unix de l'alerte (secondes, float).
+        confidence: Confiance de la détection déclenchante.
+        class_name: "person" ou nom de l'objet interdit.
+        alert_level: Niveau de l'alerte : "weak" (une seule caméra) ou
+                     "confirmed" (vote multi-caméras atteint).
+        acknowledged: Vrai une fois l'alerte journalisée ou transmise.
     """
 
     alert_type: AlertType
@@ -61,7 +68,7 @@ class Alert:
         confidence: float,
         alert_level: AlertLevel = "confirmed",
     ) -> "Alert":
-        """Factory method pour une alerte 'personne en zone interdite'."""
+        """Construit une alerte 'personne en zone interdite'."""
         return cls(
             alert_type="zone_violation_person",
             global_id=global_id,
@@ -85,7 +92,7 @@ class Alert:
         confidence: float,
         alert_level: AlertLevel = "confirmed",
     ) -> "Alert":
-        """Factory method pour une alerte 'objet interdit'."""
+        """Construit une alerte 'objet interdit' (zone_id volontairement à None)."""
         return cls(
             alert_type="forbidden_object",
             global_id=global_id,
@@ -99,7 +106,7 @@ class Alert:
         )
 
     def to_dict(self) -> dict:
-        """Serialize to a plain dict for JSON logging."""
+        """Sérialise l'alerte en dictionnaire simple pour journalisation JSON."""
         return {
             "alert_id": self.alert_id,
             "alert_type": self.alert_type,

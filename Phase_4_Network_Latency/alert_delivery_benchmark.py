@@ -1,3 +1,29 @@
+"""Benchmark synthétique de latence de livraison d'alertes selon le transport.
+
+Quatre transports sont comparés. Dans chaque cas, la latence est mesurée côté
+récepteur avec ``time.perf_counter_ns`` entre la création de l'événement et sa
+réception (aller simple, émetteur et récepteur dans le même processus) :
+
+- ``queue``     : file locale ``queue.Queue`` entre deux threads, sans réseau
+  (borne basse de référence) ;
+- ``http_post`` : requêtes POST JSON vers un mini serveur HTTP sur localhost ;
+- ``websocket`` : messages sur une connexion WebSocket locale ;
+- ``mqtt``      : publication/souscription via un broker MQTT externe (QoS 0 ou 1).
+
+Dépendances optionnelles : le transport ``websocket`` requiert le paquet
+``websockets`` (pip install websockets) ; le transport ``mqtt`` requiert
+``paho-mqtt`` (pip install paho-mqtt) ainsi qu'un broker accessible, par
+exemple mosquitto en local. Les transports ``queue`` et ``http_post`` ne
+dépendent que de la bibliothèque standard.
+
+Exemple::
+
+    python Phase_4_Network_Latency/alert_delivery_benchmark.py --transport queue --events 500 --rate-hz 25
+
+Le script écrit un CSV avec une ligne par événement (event_id, transport,
+latency_ms) et affiche un résumé (moyenne, médiane, p95, max).
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -17,11 +43,21 @@ from urllib.request import Request, urlopen
 
 @dataclass(frozen=True)
 class AlertEvent:
+    """Alerte synthétique émise par le benchmark.
+
+    Attributs :
+        event_id : numéro séquentiel de l'événement ;
+        alert_level : niveau simulé (``confirmed`` ou ``weak``) ;
+        created_ns : horodatage de création en nanosecondes (``time.perf_counter_ns``),
+            transporté avec l'événement pour calculer la latence à la réception.
+    """
+
     event_id: int
     alert_level: str
     created_ns: int
 
     def to_json(self) -> bytes:
+        """Sérialise l'événement en JSON encodé UTF-8 (charge utile des transports réseau)."""
         return json.dumps(
             {
                 "event_id": self.event_id,
@@ -33,12 +69,19 @@ class AlertEvent:
 
 @dataclass(frozen=True)
 class AlertLatency:
+    """Mesure de latence d'un événement livré : identifiant, transport utilisé, latence en ms."""
+
     event_id: int
     transport: str
     latency_ms: float
 
 
 def percentile(values: list[float], pct: float) -> float:
+    """Retourne le percentile ``pct`` (0 à 100) par la méthode du rang le plus proche.
+
+    Exemple : ``percentile(latences, 95.0)`` pour le p95. Retourne 0.0 sur une
+    liste vide.
+    """
     if not values:
         return 0.0
     ordered = sorted(values)
@@ -47,6 +90,7 @@ def percentile(values: list[float], pct: float) -> float:
 
 
 def summarize_latencies(rows: list[AlertLatency]) -> dict[str, float]:
+    """Agrège les mesures en statistiques : nombre d'événements, moyenne, médiane, p95 et max (ms)."""
     latencies = [row.latency_ms for row in rows]
     return {
         "events": float(len(rows)),
@@ -58,6 +102,13 @@ def summarize_latencies(rows: list[AlertLatency]) -> dict[str, float]:
 
 
 def run_queue_benchmark(events: int, rate_hz: float) -> list[AlertLatency]:
+    """Benchmark du transport ``queue`` : file locale entre un thread émetteur et un thread récepteur.
+
+    L'émetteur pousse ``events`` événements espacés de ``1 / rate_hz`` secondes
+    (aucune pause si la cadence est nulle) ; un ``None`` final sert de signal
+    d'arrêt au récepteur. Mesure le coût minimal de remise inter-threads, sans
+    sérialisation ni réseau.
+    """
     channel: queue.Queue[AlertEvent | None] = queue.Queue()
     rows: list[AlertLatency] = []
 
@@ -88,9 +139,17 @@ def run_queue_benchmark(events: int, rate_hz: float) -> list[AlertLatency]:
 
 
 class _AlertPostHandler(BaseHTTPRequestHandler):
+    """Récepteur HTTP du benchmark ``http_post``.
+
+    Chaque POST est horodaté à la réception et la mesure est accumulée dans
+    l'attribut de classe ``received`` (réinitialisé à chaque exécution du
+    benchmark).
+    """
+
     received: list[AlertLatency] = []
 
     def do_POST(self) -> None:
+        """Décode l'événement JSON reçu, calcule sa latence et répond 204."""
         length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(length)
         payload = json.loads(body.decode("utf-8"))
@@ -105,10 +164,18 @@ class _AlertPostHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, fmt: str, *args) -> None:
+        """Désactive le journal d'accès HTTP pour ne pas fausser les mesures."""
         return
 
 
 def run_http_post_benchmark(events: int, rate_hz: float) -> list[AlertLatency]:
+    """Benchmark du transport ``http_post`` : POST JSON vers un serveur HTTP local.
+
+    Démarre un serveur éphémère sur 127.0.0.1 (port choisi par l'OS), envoie
+    ``events`` requêtes synchrones espacées de ``1 / rate_hz`` secondes, puis
+    arrête le serveur. La latence inclut la sérialisation JSON, la pile TCP
+    locale et le traitement de la requête.
+    """
     _AlertPostHandler.received = []
     server = ThreadingHTTPServer(("127.0.0.1", 0), _AlertPostHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -133,6 +200,16 @@ def run_http_post_benchmark(events: int, rate_hz: float) -> list[AlertLatency]:
 
 
 async def _run_websocket_benchmark_async(events: int, rate_hz: float) -> list[AlertLatency]:
+    """Cœur asynchrone du benchmark ``websocket`` (serveur et client dans la même boucle asyncio).
+
+    Ouvre un serveur WebSocket local sur un port libre, y connecte un client,
+    envoie ``events`` messages JSON espacés de ``1 / rate_hz`` secondes, puis
+    attend (au plus 5 s) que toutes les réceptions soient comptabilisées.
+
+    Dépendance optionnelle : le paquet ``websockets`` est importé ici à la
+    demande ; s'il est absent, le script s'arrête avec un message expliquant
+    comment l'installer.
+    """
     try:
         import websockets
     except ModuleNotFoundError as exc:
@@ -175,6 +252,7 @@ async def _run_websocket_benchmark_async(events: int, rate_hz: float) -> list[Al
 
 
 def run_websocket_benchmark(events: int, rate_hz: float) -> list[AlertLatency]:
+    """Enveloppe synchrone du benchmark ``websocket`` (exécute la version asynchrone)."""
     return asyncio.run(_run_websocket_benchmark_async(events, rate_hz))
 
 
@@ -186,6 +264,18 @@ def run_mqtt_benchmark(
     port: int,
     topic: str,
 ) -> list[AlertLatency]:
+    """Benchmark du transport ``mqtt`` : publication/souscription via un broker externe.
+
+    Connecte un abonné puis un éditeur au broker ``host:port``, publie
+    ``events`` messages JSON sur ``topic`` avec le QoS demandé (0 ou 1),
+    espacés de ``1 / rate_hz`` secondes, puis attend (au plus 5 s) la réception
+    complète. La latence inclut l'aller-retour par le broker.
+
+    Dépendance optionnelle : le paquet ``paho-mqtt`` est importé ici à la
+    demande ; il faut aussi un broker MQTT joignable (par exemple mosquitto en
+    local). Le script s'arrête avec un message explicite si le paquet manque ou
+    si la connexion échoue.
+    """
     try:
         import paho.mqtt.client as mqtt
     except ModuleNotFoundError as exc:
@@ -248,6 +338,7 @@ def run_mqtt_benchmark(
 
 
 def write_latency_rows(rows: list[AlertLatency], out_csv: Path) -> None:
+    """Écrit les mesures brutes dans un CSV (event_id, transport, latency_ms), en créant les dossiers au besoin."""
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     with out_csv.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["event_id", "transport", "latency_ms"])
@@ -263,20 +354,37 @@ def write_latency_rows(rows: list[AlertLatency], out_csv: Path) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Synthetic alert delivery latency benchmark.")
-    parser.add_argument("--transport", choices=["queue", "http_post", "websocket", "mqtt"], default="queue")
-    parser.add_argument("--qos", type=int, default=0)
-    parser.add_argument("--mqtt-host", default="127.0.0.1")
-    parser.add_argument("--mqtt-port", type=int, default=1883)
-    parser.add_argument("--mqtt-topic", default="phase4/alerts")
-    parser.add_argument("--events", type=int, default=500)
-    parser.add_argument("--rate-hz", type=float, default=25.0)
-    parser.add_argument("--out", type=Path, default=Path("Phase_4_Network_Latency/runs/alert_latency.csv"))
-    parser.add_argument("--seed", type=int, default=7)
+    """Analyse les options de la ligne de commande du benchmark."""
+    parser = argparse.ArgumentParser(description="Benchmark synthétique de latence de livraison d'alertes.")
+    parser.add_argument(
+        "--transport",
+        choices=["queue", "http_post", "websocket", "mqtt"],
+        default="queue",
+        help="Transport à mesurer (défaut : queue). websocket et mqtt requièrent des dépendances optionnelles.",
+    )
+    parser.add_argument("--qos", type=int, default=0, help="Niveau de QoS MQTT, 0 ou 1 (transport mqtt uniquement).")
+    parser.add_argument("--mqtt-host", default="127.0.0.1", help="Adresse du broker MQTT (transport mqtt uniquement).")
+    parser.add_argument("--mqtt-port", type=int, default=1883, help="Port du broker MQTT (défaut : 1883).")
+    parser.add_argument("--mqtt-topic", default="phase4/alerts", help="Sujet MQTT de publication des alertes.")
+    parser.add_argument("--events", type=int, default=500, help="Nombre d'événements à émettre (défaut : 500).")
+    parser.add_argument(
+        "--rate-hz",
+        type=float,
+        default=25.0,
+        help="Cadence d'émission en Hz ; 0 pour émettre sans pause (défaut : 25).",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("Phase_4_Network_Latency/runs/alert_latency.csv"),
+        help="Chemin du CSV de sortie (une ligne par événement).",
+    )
+    parser.add_argument("--seed", type=int, default=7, help="Graine du générateur aléatoire (reproductibilité).")
     return parser.parse_args()
 
 
 def main() -> None:
+    """Point d'entrée : exécute le benchmark du transport choisi, écrit le CSV et affiche le résumé."""
     args = parse_args()
     random.seed(args.seed)
     if args.transport == "queue":

@@ -1,8 +1,20 @@
 """
-Phase 2 - Test YOLO Baseline (out-of-the-box)
-8 caméras simultanées en grille 2x4 avec inférence YOLO sur chaque flux.
-Utilise GStreamer pour des lectures RTSP zéro-latence en parallèle.
-Supporte aussi les fichiers vidéo locaux.
+Phase 2 - Démo YOLO baseline (out-of-the-box, ex test_yolo_baseline.py).
+
+Affiche les 8 caméras simultanément en grille 2x4 avec inférence YOLOv8s
+(poids COCO, sans réentraînement) sur chaque flux : c'est la démonstration
+de la baseline avant l'entraînement des modèles du projet. Utilise
+GStreamer pour des lectures RTSP zéro-latence en parallèle (un thread par
+caméra), avec batch inference GPU et frame skipping. Supporte aussi les
+fichiers vidéo locaux (rejoués en boucle) définis dans le config de la
+Phase 3 ; le fichier local est préféré au flux RTSP s'il existe.
+
+Pas d'interface argparse : les réglages se font en éditant les constantes
+en tête de fichier (TARGET_CLASSES, CONFIDENCE, INFERENCE_SIZE,
+PROCESS_EVERY_N, USE_HALF, CONFIG_PATH...).
+
+Lancement :
+  python demo_yolo_baseline.py
 
 Appuyer sur Q pour quitter.
 """

@@ -1,8 +1,11 @@
-"""Verify that the repository and external data layout can run experiments.
+"""Vérifie que le dépôt et les données externes permettent de lancer les expériences.
 
-The project intentionally keeps heavy assets outside Git. This script checks
-both the standard external layout and the historical in-repository paths used by
-the research scripts.
+Le projet garde volontairement les fichiers lourds hors de Git. Ce script
+contrôle à la fois l'arborescence externe standard et les chemins historiques
+dans le dépôt encore utilisés par les scripts de recherche.
+
+Exemple :
+    python scripts/verify_data_layout.py --data-dir ../STAGELIST3N-FusionCam-data --require-engine
 """
 
 from __future__ import annotations
@@ -21,27 +24,33 @@ REQUIRED_V4_RECORDINGS = {
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Verify FusionCam data layout.")
+    """Analyse les arguments de la ligne de commande."""
+    parser = argparse.ArgumentParser(description="Vérifie l'arborescence de données FusionCam.")
     parser.add_argument(
         "--data-dir",
         default="../STAGELIST3N-FusionCam-data",
-        help="External heavy-data directory.",
+        help="Répertoire externe des données lourdes.",
     )
-    parser.add_argument("--model-version", default="V4")
-    parser.add_argument("--model", default="yolov8s")
+    parser.add_argument("--model-version", default="V4",
+                        help="Version du modèle à vérifier (défaut : V4).")
+    parser.add_argument("--model", default="yolov8s",
+                        help="Nom du modèle à vérifier (défaut : yolov8s).")
     parser.add_argument(
         "--require-engine",
         action="store_true",
-        help="Require TensorRT best.engine in addition to best.pt.",
+        help="Exiger le moteur TensorRT best.engine en plus de best.pt.",
     )
     return parser.parse_args()
 
 
 def repo_root() -> Path:
+    """Renvoie la racine du dépôt (dossier parent de scripts/)."""
     return Path(__file__).resolve().parent.parent
 
 
 def check_path(label: str, path: Path, *, required: bool = True) -> bool:
+    """Affiche l'état d'un chemin (OK/MISS/optional) et renvoie False seulement
+    si un chemin requis est manquant."""
     ok = path.exists()
     marker = "OK" if ok else ("MISS" if required else "optional")
     print(f"[{marker:8}] {label}: {path}")
@@ -49,6 +58,7 @@ def check_path(label: str, path: Path, *, required: bool = True) -> bool:
 
 
 def first_existing(paths: list[Path]) -> Path | None:
+    """Renvoie le premier chemin existant de la liste, ou None."""
     for path in paths:
         if path.exists():
             return path
@@ -56,6 +66,9 @@ def first_existing(paths: list[Path]) -> Path | None:
 
 
 def main() -> int:
+    """Contrôle vérités terrain, données externes, enregistrements V4, poids de
+    modèles et chemins historiques. Renvoie 0 si tout le requis est présent,
+    1 sinon (avec la liste des éléments manquants et la commande de réparation)."""
     args = parse_args()
     root = repo_root()
     data_root = (root / args.data_dir).resolve()

@@ -367,7 +367,7 @@ def main():
             print(f"[ERREUR] --prune doit etre entre 0.0 et 1.0 (recu: {args.prune})")
             return
         if args.prune > 0.5:
-            print(f"  [ATTENTION] Pruning a {args.prune * 100:.0f}% — la precision de")
+            print(f"  [ATTENTION] Pruning a {args.prune * 100:.0f}% : la precision de")
             print(f"              detection sera probablement degradee. 20-30%% recommande.")
 
     # Construire le suffixe de renommage (vide si --suffix pas utilise)
