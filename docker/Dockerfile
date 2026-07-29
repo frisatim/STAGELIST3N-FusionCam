@@ -23,17 +23,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN python3 -m pip install --upgrade pip setuptools wheel
 
-# PyTorch CUDA wheels are installed explicitly. TensorRT engine export may still
-# require a host/container TensorRT setup compatible with the target GPU.
+# Versions alignees sur l'environnement de reference du stage
+# (voir docs/ENVIRONNEMENT_REFERENCE.md et requirements.lock.txt).
+# Les wheels PyTorch cu128 embarquent leurs bibliotheques CUDA ; l'image de
+# base fournit cuDNN et le runtime. L'export d'engine TensorRT reste lie au
+# GPU cible.
 RUN python3 -m pip install \
-    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+    torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 \
+    --index-url https://download.pytorch.org/whl/cu128
 
 COPY requirements.txt /tmp/requirements.txt
 RUN python3 -m pip install -r /tmp/requirements.txt
 
 RUN python3 -m pip install \
-    onnx \
-    onnxruntime-gpu \
-    tensorrt
+    onnx==1.20.1 \
+    onnxruntime-gpu==1.24.1 \
+    tensorrt==10.16.0.72
 
 CMD ["bash"]

@@ -19,6 +19,8 @@ secrets.*
 *.pem
 
 # Datasets and recordings are intentionally kept outside Git.
+# Les deux formes (avec et sans slash) sont necessaires : sous Windows ces
+# dossiers sont des jonctions, que git peut voir comme des liens symboliques.
 dataset
 dataset/
 dataset_objets_HD
@@ -45,8 +47,9 @@ videos/
 *.tflite
 *.mlpackage
 weights/
+# Les deux formes (avec et sans slash) sont necessaires : sous Windows le
+# dossier est une jonction, que git peut voir comme un lien symbolique.
 Modelstrained
-Modelstrained/
 Phase_2_Baseline_MonoCam/Modelstrained
 Phase_2_Baseline_MonoCam/Modelstrained/
 
@@ -57,16 +60,16 @@ logs/
 outputs/
 artifacts/
 
-# Large generated reports from campaigns
+# Large generated reports from campaigns.
+# Note : le dossier reports/ a la racine du depot (resumes legers) est
+# versionne ; seul Phase_3_Fusion_MultiCam/reports (sorties completes de
+# campagnes, jonction Windows possible) est exclu.
 Phase_3_Fusion_MultiCam/reports
 Phase_3_Fusion_MultiCam/reports/
-!reports/
-!reports/**
 
 # OS / IDE
 .DS_Store
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
-!.vscode/settings.json
 *.code-workspace

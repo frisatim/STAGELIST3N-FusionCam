@@ -13,7 +13,9 @@ services:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
       PYTHONUNBUFFERED: "1"
-      FUSIONCAM_DATA_ROOT: /workspace/data
+    # L'acces GPU declare ci-dessous n'est honore que par Docker Compose v2
+    # (commande `docker compose`). Avec l'ancien binaire `docker-compose` v1,
+    # cette section est ignoree et le conteneur demarre SANS GPU.
     deploy:
       resources:
         reservations:
@@ -38,7 +40,7 @@ services:
       - ${FUSIONCAM_DATA_DIR:-../STAGELIST3N-FusionCam-data}/reports/Phase_3_Fusion_MultiCam:/workspace/code/Phase_3_Fusion_MultiCam/reports
 
   mediamtx:
-    image: bluenviron/mediamtx:latest
+    image: bluenviron/mediamtx:1
     container_name: fusioncam-mediamtx
     restart: unless-stopped
     ports:

@@ -136,6 +136,7 @@ Les CSV frame-par-frame complets, videos et logs volumineux sont livres dans le 
 | `docs/METRIQUES.md` | Definitions TRD, TAD, FAR, precision/rappel |
 | `docs/VERSIONS_MODELES.md` | Versions V1 a V4 des modeles et datasets |
 | `docs/REPRODUCTION.md` | Reproduire les resultats du rapport |
+| `docs/ENVIRONNEMENT_REFERENCE.md` | Versions exactes GPU/CUDA/Python/libs des runs finaux |
 | `docs/DATA_LAYOUT.md` | Architecture code + donnees externes |
 | `docs/NEW_PC_SETUP.md` | Installation sur un nouveau PC Windows |
 | `docs/DOCKER_DELIVERY.md` | Livraison Docker et donnees lourdes |
