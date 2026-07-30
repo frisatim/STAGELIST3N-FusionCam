@@ -107,7 +107,7 @@ Outils dans `Phase_1_Infrastructure/` :
   classes a la volee.
 
 Les copies presentes dans ce dossier ont ete rassemblees ici pour la
-livraison (voir `docs/DATA_LAYOUT.md`, section Ground truths) : les scripts
+livraison (voir `docs/DONNEES.md`, section Ground truths) : les scripts
 utilisent d'abord les chemins historiques (racine projet,
 `dataset_objets_HD/`) et retombent sur `ground_truth/` quand le depot Git est
 utilise seul.

@@ -4,12 +4,12 @@ Ce dossier contient les exports legers des campagnes conserves dans Git :
 resumes CSV, manifestes et un rapport d'analyse. Les CSV frame par frame
 complets (detections, alertes, liens de fusion, traces de latence) et les
 sorties de la session finale sont livres dans le dossier de donnees externe
-(`docs/DATA_LAYOUT.md`).
+(`docs/DONNEES.md`).
 
 Les definitions des metriques (TRD, TAD, FAR, precision/rappel evenementiels,
 regroupement des faux positifs) sont dans `docs/METRIQUES.md`. La
 signification des versions de modeles (V2, V3, V4) est dans
-`docs/VERSIONS_MODELES.md`.
+`docs/DONNEES.md`.
 
 ## AVERTISSEMENT de perimetre
 
@@ -31,7 +31,7 @@ externe :
 Note : les colonnes `source_csv` et les chemins des manifestes sont au format
 Windows et pointent vers `Phase_3_Fusion_MultiCam/reports/...`, l'emplacement
 d'origine des sorties de campagne ; les chemins sensibles ont ete remplaces
-par `<PROJECT_ROOT>` (voir `docs/DATA_AND_SECURITY.md`).
+par `<PROJECT_ROOT>` (voir `docs/DONNEES.md`).
 
 ## Contenu des sous-dossiers
 
@@ -90,7 +90,7 @@ tout le meme statut** :
     `summary.csv` ;
   - les blocs des modeles V2 ont `frames = 0` ou `predicted_links = 0` :
     l'ablation filtre la classe personne par `class_id == 11`, or les modeles
-    V2 encodent `personne` avec l'id 14 (voir `docs/VERSIONS_MODELES.md`) ;
+    V2 encodent `personne` avec l'id 14 (voir `docs/DONNEES.md`) ;
     seuls les blocs V3 sont exploitables.
 - `fusion_threshold_ablation_synthetic.csv` : **donnees synthetiques, a ne
   PAS citer comme des mesures reelles**. Produit par
@@ -117,7 +117,7 @@ Ecrit par `run_recorded_campaign.py` / `run_live_campaign.py` a partir de
 
 | Colonne | Signification |
 |---|---|
-| `model_version` | Version d'entrainement du modele : V2, V3 ou V4 (`docs/VERSIONS_MODELES.md`). |
+| `model_version` | Version d'entrainement du modele : V2, V3 ou V4 (`docs/DONNEES.md`). |
 | `model` | Nom du modele (yolov8s, yolo11n, rtdetr-l...). |
 | `format` | Format des poids : `pt` (PyTorch) ou `fp32_engine` (TensorRT FP32). |
 | `frames` | Nombre de lots de frames synchronisees traites (un lot = 1 frame par camera). |
@@ -191,6 +191,6 @@ inter-cameras contre le `truth_id` synthetique : `tp`, `fp_false_matches`
 ## Voir aussi
 
 - `docs/METRIQUES.md` : definitions des metriques et fenetres de tolerance.
-- `docs/VERSIONS_MODELES.md` : versions V2/V3/V4 et piege des `class_id`.
+- `docs/DONNEES.md` : versions V2/V3/V4 et piege des `class_id`.
 - `docs/REPRODUCTION.md` : rejouer une campagne et retrouver la session finale.
 - `ground_truth/README.md` : fichiers de verite terrain et mapping `gt_id_map`.

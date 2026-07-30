@@ -2,7 +2,8 @@
 
 Ce dossier contient les notes de travail internes conservees pour la
 tracabilite : roadmaps de tests hebdomadaires, syntheses de reunions,
-analyses intermediaires et plans de developpement.
+analyses intermediaires, plans de developpement et checklist de
+livraison finale.
 
 Ces documents ne sont plus maintenus et peuvent contenir des chemins,
 des chiffres ou des noms de fichiers anterieurs au nettoyage final du

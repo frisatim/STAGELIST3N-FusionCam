@@ -4,7 +4,7 @@ Reference du projet : detection et alertes en coordonnees image, camera
 par camera, sans fusion. Cette phase entraine les modeles (YOLOv8,
 YOLO11, RT-DETR) et fournit l'evaluation TAD/TRD a laquelle la Phase 3
 est comparee. Definitions des metriques : `docs/METRIQUES.md`. Versions
-des modeles et datasets : `docs/VERSIONS_MODELES.md`.
+des modeles et datasets : `docs/DONNEES.md`.
 
 ## Scripts principaux
 
@@ -32,7 +32,7 @@ des modeles et datasets : `docs/VERSIONS_MODELES.md`.
   par `draw_zones.py`).
 - `Modelstrained/` : poids entraines. Dossier non versionne, fourni par
   le dossier de donnees externe via jonction Windows ou montage Docker
-  (voir `docs/DATA_LAYOUT.md`).
+  (voir `docs/DONNEES.md`).
 - `legacy/` : scripts remplaces (voir `legacy/README.md`).
 
 ## Sorties d'evaluation

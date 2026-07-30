@@ -6,7 +6,7 @@ Demarrer MediaMTX :
 docker compose up -d mediamtx
 ```
 
-Les videos suivent le layout officiel documente dans `docs/DATA_LAYOUT.md` :
+Les videos suivent le layout officiel documente dans `docs/DONNEES.md` :
 `STAGELIST3N-FusionCam-data/recordings/recordings/Camera_*.mp4` (deux niveaux
 `recordings`).
 

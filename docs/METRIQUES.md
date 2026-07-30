@@ -104,4 +104,4 @@ multi-cameras controle par `person_zone_min_camera_ratio` /
 - Latence de transport : delai de livraison des metadonnees/alertes par
   canal (queue locale, HTTP POST, WebSocket, MQTT), mesure par
   `Phase_4_Network_Latency/alert_delivery_benchmark.py`.
-- Decomposition par etape : `docs/LATENCE_END_TO_END_PAR_ETAPE.md`.
+- Decomposition par etape : `docs/REPRODUCTION.md` (section latence).

@@ -17,8 +17,7 @@ Les definitions formelles des metriques (TRD, TAD, FAR, precision/rappel eveneme
 
 ## Par ou commencer
 
-- `docs/GUIDE_LECTURE.md` : ordre de lecture des phases, role de chaque dossier, correspondance avec les chapitres du rapport de stage.
-- `docs/RESEARCH_PLAN_SUMMARY.md` : objectif scientifique et plan des 4 phases.
+- `docs/GUIDE_LECTURE.md` : question de recherche, ordre de lecture des phases, correspondance avec les chapitres du rapport de stage.
 - `docs/REPRODUCTION.md` : comment relancer les campagnes et retrouver les resultats du rapport.
 
 ## Organisation
@@ -39,13 +38,11 @@ docker/                       Dockerfile, MediaMTX, replay RTSP.
 
 Chaque dossier de phase contient un `README.md` qui decrit ses scripts. Les scripts obsolets sont conserves dans des sous-dossiers `legacy/` avec explication.
 
-Les datasets complets, videos, poids `.pt`, engines TensorRT `.engine` et sorties d'entrainement ne sont pas versionnes dans Git. Ils sont livres dans un dossier externe `STAGELIST3N-FusionCam-data` decrit dans `docs/DATA_LAYOUT.md`.
+Les datasets complets, videos, poids `.pt`, engines TensorRT `.engine` et sorties d'entrainement ne sont pas versionnes dans Git. Ils sont livres dans un dossier externe `STAGELIST3N-FusionCam-data` decrit dans `docs/DONNEES.md`.
 
 ## Installation
 
-Guide complet Windows : `docs/NEW_PC_SETUP.md`
-Livraison Docker + donnees lourdes : `docs/DOCKER_DELIVERY.md`
-Checklist de remise finale : `docs/FINAL_DELIVERY_CHECKLIST.md`
+Guide complet (Windows natif ou Docker, avec l'environnement de reference des runs finaux) : `docs/INSTALLATION.md`
 
 Setup Windows automatique :
 
@@ -65,7 +62,7 @@ python scripts\verify_data_layout.py --model-version V4 --model yolov8s
 ## Pipeline Phase 3
 
 1. Lecture des flux camera ou videos enregistrees.
-2. Detection par modele YOLO / RT-DETR (versions de modeles : `docs/VERSIONS_MODELES.md`).
+2. Detection par modele YOLO / RT-DETR (versions de modeles : `docs/DONNEES.md`).
 3. Suivi mono-camera avec ByteTrack.
 4. Projection du point bas-centre sur le plan sol par homographie.
 5. Association inter-cameras avec `MultiCameraFusion` (compatibilite de classes requise).
@@ -110,7 +107,7 @@ python Phase_3_Fusion_MultiCam/run_live_campaign.py \
 
 Avec cette configuration, une detection objet vue par une seule camera est une alerte `weak`; une detection confirmee par au moins deux cameras dans la fenetre temporelle est une alerte `confirmed`.
 
-Utiliser `--formats fp32_engine` seulement apres avoir verifie que l'engine TensorRT local se charge sur le GPU cible (les `.engine` sont lies au GPU qui les a generes, voir `docs/DOCKER_DELIVERY.md`).
+Utiliser `--formats fp32_engine` seulement apres avoir verifie que l'engine TensorRT local se charge sur le GPU cible (les `.engine` sont lies au GPU qui les a generes, voir `docs/INSTALLATION.md`).
 
 Tests automatises (les scripts `visual_check_*.py` et `demo_*.py` sont des harnais visuels, pas des tests pytest) :
 
@@ -121,33 +118,21 @@ python -m pytest -q
 ## Resultats inclus
 
 - `reports/` : exports legers des campagnes (comparaison Phase 2 vs Phase 3, ablation du seuil de fusion, resumes live). Colonnes documentees dans `reports/README.md`.
-- `docs/figures/phase3_phase4_20260707/` : figures finales du rapport, regenerables avec `python scripts/generate_phase3_phase4_figures.py` (voir `docs/FIGURES_PHASE3_PHASE4_20260623.md`).
-- `docs/ANALYSE_RESULTATS_GRAPHES_PHASE3_PHASE4_20260623.md` : interpretation des resultats finaux.
-- `docs/AUDIT_INTERET_FUSION_MULTICAMERA_20260623.md` : audit scientifique de l'interet de la fusion.
+- `docs/figures/phase3_phase4_20260707/` : figures finales du rapport, regenerables avec `python scripts/generate_phase3_phase4_figures.py`. L'interpretation detaillee des resultats est dans le rapport de stage.
 
-Les CSV frame-par-frame complets, videos et logs volumineux sont livres dans le dossier de donnees externe (`docs/DATA_LAYOUT.md`).
+Les CSV frame-par-frame complets, videos et logs volumineux sont livres dans le dossier de donnees externe (`docs/DONNEES.md`).
 
 ## Index des documents
 
 | Document | Contenu |
 |---|---|
-| `docs/GUIDE_LECTURE.md` | Ordre de lecture, mapping rapport de stage vers depot |
-| `docs/RESEARCH_PLAN_SUMMARY.md` | Objectif et plan de recherche |
+| `docs/GUIDE_LECTURE.md` | Question de recherche, ordre de lecture, mapping rapport de stage vers depot |
 | `docs/METRIQUES.md` | Definitions TRD, TAD, FAR, precision/rappel |
-| `docs/VERSIONS_MODELES.md` | Versions V1 a V4 des modeles et datasets |
-| `docs/REPRODUCTION.md` | Reproduire les resultats du rapport |
-| `docs/ENVIRONNEMENT_REFERENCE.md` | Versions exactes GPU/CUDA/Python/libs des runs finaux |
-| `docs/DATA_LAYOUT.md` | Architecture code + donnees externes |
-| `docs/NEW_PC_SETUP.md` | Installation sur un nouveau PC Windows |
-| `docs/DOCKER_DELIVERY.md` | Livraison Docker et donnees lourdes |
-| `docs/FINAL_DELIVERY_CHECKLIST.md` | Checklist de remise finale |
-| `docs/DATA_AND_SECURITY.md` | Politique de donnees et assainissement |
-| `docs/LATENCE_END_TO_END_PAR_ETAPE.md` | Methode de mesure de latence par etape |
-| `docs/AUDIT_INTERET_FUSION_MULTICAMERA_20260623.md` | Audit scientifique fusion multi-cameras |
-| `docs/ANALYSE_RESULTATS_GRAPHES_PHASE3_PHASE4_20260623.md` | Analyse des resultats et graphes finaux |
-| `docs/FIGURES_PHASE3_PHASE4_20260623.md` | Legendes et regeneration des figures |
+| `docs/INSTALLATION.md` | Installation Windows natif ou Docker, environnement de reference |
+| `docs/DONNEES.md` | Donnees externes, versions V1 a V4 des modeles, securite |
+| `docs/REPRODUCTION.md` | Reproduire les resultats du rapport, mesurer la latence |
 | `docs/archive/` | Notes de travail internes, non maintenues |
 
 ## Securite des donnees
 
-Les URLs RTSP, mots de passe camera, IPs internes, videos et datasets complets ont ete exclus ou remplaces par des placeholders. Voir `docs/DATA_AND_SECURITY.md`.
+Les URLs RTSP, mots de passe camera, IPs internes, videos et datasets complets ont ete exclus ou remplaces par des placeholders. Voir `docs/DONNEES.md`.

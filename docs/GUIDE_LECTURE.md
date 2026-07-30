@@ -4,6 +4,24 @@ Ce document donne l'ordre de lecture conseille pour comprendre le projet,
 le role de chaque phase, et la correspondance entre les chapitres du
 rapport de stage et les dossiers du depot.
 
+## Question de recherche
+
+Construire et evaluer un systeme de surveillance multi-cameras pour
+detecter automatiquement l'entree d'une personne dans une zone
+interdite (metrique TRD) et l'apparition d'un objet interdit dans
+l'atelier (metrique TAD). Le travail vise une comparaison
+experimentale rigoureuse entre une baseline mono-camera en coordonnees
+image et une fusion multi-cameras projetee sur le plan sol, pas
+seulement l'execution d'un modele de detection.
+
+Hypothese centrale : la fusion doit etre plus pertinente
+geometriquement pour les violations de zone, car elle raisonne sur le
+sol reel en metres, mais elle depend fortement de la qualite des
+calibrations, du tracking et de la fusion. Pour les objets interdits,
+la fusion brute peut creer beaucoup de repetitions, d'ou la logique
+d'alertes a deux niveaux : `weak` pour une camera seule, `confirmed`
+pour une confirmation multi-camera.
+
 ## Logique generale
 
 Le projet suit une progression en 4 phases. Chaque phase repond a une
@@ -28,26 +46,28 @@ question et fournit les briques de la suivante :
 ## Ordre de lecture conseille
 
 1. `README.md` (racine) : vue d'ensemble et commandes principales.
-2. `docs/RESEARCH_PLAN_SUMMARY.md` : question de recherche et plan.
-3. `docs/METRIQUES.md` : definitions TRD, TAD, FAR utilisees partout.
-4. `docs/VERSIONS_MODELES.md` : ce que sont les versions V1 a V4.
-5. Le `README.md` de chaque phase, dans l'ordre 1, 2, 2.5, 3, 4.
-6. `docs/ANALYSE_RESULTATS_GRAPHES_PHASE3_PHASE4_20260623.md` puis
-   `docs/AUDIT_INTERET_FUSION_MULTICAMERA_20260623.md` : resultats et
-   lecture critique.
-7. `docs/REPRODUCTION.md` : pour relancer les campagnes.
+2. `docs/METRIQUES.md` : definitions TRD, TAD, FAR utilisees partout.
+3. `docs/DONNEES.md` : layout des donnees et versions V1 a V4 des
+   modeles et datasets.
+4. Le `README.md` de chaque phase, dans l'ordre 1, 2, 2.5, 3, 4.
+5. `docs/REPRODUCTION.md` : pour relancer les campagnes.
+
+L'analyse detaillee des resultats et la lecture critique de l'interet
+de la fusion sont dans le rapport de stage ; le depot conserve les
+figures (`docs/figures/phase3_phase4_20260707/`) et les resumes CSV
+(`reports/`).
 
 ## Correspondance rapport de stage / depot
 
 | Chapitre du rapport | Contenu | Dossiers et fichiers principaux |
 |---|---|---|
 | 1. Presentation de l'organisme d'accueil | Contexte du stage | (pas de code) |
-| 2. Contexte scientifique et problematique | Question de recherche, etat de l'art | `docs/RESEARCH_PLAN_SUMMARY.md` |
-| 3. Infrastructure d'acquisition et constitution du jeu de donnees | Cameras, enregistrement, annotation, datasets | `Phase_1_Infrastructure/`, `ground_truth/`, `docs/VERSIONS_MODELES.md` |
+| 2. Contexte scientifique et problematique | Question de recherche, etat de l'art | ce document (section Question de recherche) |
+| 3. Infrastructure d'acquisition et constitution du jeu de donnees | Cameras, enregistrement, annotation, datasets | `Phase_1_Infrastructure/`, `ground_truth/`, `docs/DONNEES.md` |
 | 4. Evaluation mono-camera : reference (baseline) | Entrainement, evaluation TAD/TRD par camera | `Phase_2_Baseline_MonoCam/` (`train_models.py`, `evaluate_trd.py`, `evaluate_tad.py`) |
 | 5. Approche multi-cameras a fusion au sol | Calibration, homographie, fusion, violations, campagnes | `Phase_3_Fusion_MultiCam/` (`calibration_tool_v2.py`, `fusion.py`, `violation_detector.py`, `run_recorded_campaign.py`), `reports/` |
-| 6. Architecture temps reel : separation video / IA / metadonnees | Latence par etape, transport, dashboard, session finale 4 cameras | `Phase_4_Network_Latency/`, `Phase_3_Fusion_MultiCam/run_live_campaign.py`, `metadata_publisher.py`, `docs/LATENCE_END_TO_END_PAR_ETAPE.md` |
-| 7. Discussion | Interet de la fusion, limites | `docs/AUDIT_INTERET_FUSION_MULTICAMERA_20260623.md`, `docs/ANALYSE_RESULTATS_GRAPHES_PHASE3_PHASE4_20260623.md` |
+| 6. Architecture temps reel : separation video / IA / metadonnees | Latence par etape, transport, dashboard, session finale 4 cameras | `Phase_4_Network_Latency/`, `Phase_3_Fusion_MultiCam/run_live_campaign.py`, `metadata_publisher.py`, `docs/REPRODUCTION.md` (section latence) |
+| 7. Discussion | Interet de la fusion, limites | (rapport de stage ; figures dans `docs/figures/`, resumes CSV dans `reports/`) |
 | 8. Enseignements / 9. Competences | Bilan personnel | (pas de code) |
 
 Les figures du rapport (latence par etape, transport des metadonnees,
@@ -63,7 +83,7 @@ montee en charge, Phase 2 vs Phase 3, faux positifs) sont dans
   datasets, enregistrements video, poids entraines (V2 a V4, courbes
   d'entrainement et matrices de confusion incluses), engines TensorRT,
   rapports de campagnes complets dont la session finale 4 cameras
-  30 minutes du rapport. Voir `docs/DATA_LAYOUT.md`.
+  30 minutes du rapport. Voir `docs/DONNEES.md`.
 
 ## Points d'attention pour la review du code
 
